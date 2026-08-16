@@ -95,19 +95,6 @@ const config: ExpoConfig = {
     ["expo-location", { locationWhenInUsePermission: "TravelGuard utilise votre position pour afficher les risques à proximité.", locationAlwaysAndWhenInUsePermission: "TravelGuard utilise votre position pour vous alerter dans les zones à risque." }],
     "expo-router",
     [
-      "expo-audio",
-      {
-        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",
-      },
-    ],
-    [
-      "expo-video",
-      {
-        supportsBackgroundPlayback: true,
-        supportsPictureInPicture: true,
-      },
-    ],
-    [
       "expo-splash-screen",
       {
         image: "./assets/images/splash-icon.png",

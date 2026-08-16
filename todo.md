@@ -26,3 +26,6 @@
 - [x] Gérer permission localisation refusée, limitée et ouverture des réglages
 - [x] Préparer les métadonnées et permissions iOS pour Xcode/App Store
 - [ ] Vérifier le rendu iOS portrait et les zones sûres après refonte
+- [x] Générer le dossier iOS natif ouvrable dans Xcode
+- [x] Vérifier le workspace/projet Xcode, bundle ID et permissions
+- [x] Ajouter un guide macOS pour ouvrir, lancer et archiver TravelGuard
