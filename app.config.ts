@@ -32,7 +32,7 @@ const env = {
   appSlug: "travelguard",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "",
+  logoUrl: "/manus-storage/icon_4a03544f.png",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
@@ -85,6 +85,8 @@ const config: ExpoConfig = {
     favicon: "./assets/images/favicon.png",
   },
   plugins: [
+    ["expo-camera", { cameraPermission: "TravelGuard utilise la caméra pour vérifier menus, additions et billets." }],
+    ["expo-location", { locationWhenInUsePermission: "TravelGuard utilise votre position pour afficher les risques à proximité.", locationAlwaysAndWhenInUsePermission: "TravelGuard utilise votre position pour vous alerter dans les zones à risque." }],
     "expo-router",
     [
       "expo-audio",
