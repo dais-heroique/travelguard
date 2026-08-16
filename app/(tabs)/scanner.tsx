@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -11,6 +12,7 @@ const scanTypes: { key: ScanType; label: string }[] = [{ key: "menu", label: "Me
 
 export default function ScannerScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanType, setScanType] = useState<ScanType>("menu");
@@ -29,11 +31,11 @@ export default function ScannerScreen() {
   return (
     <ScreenContainer edges={["top", "left", "right"]} containerClassName="bg-background">
       <View style={styles.header}><View><Text style={[styles.eyebrow, { color: colors.muted }]}>VÉRIFICATION AVANT PAIEMENT</Text><Text style={[styles.title, { color: colors.foreground }]}>Scanner un document</Text></View><View style={[styles.offlineBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={[styles.offlineDot, { backgroundColor: colors.success }]} /><Text style={[styles.offlineText, { color: colors.foreground }]}>Hors ligne</Text></View></View>
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingBottom: Math.max(insets.bottom + 96, 112) }]}>
         <View style={styles.typeRow}>{scanTypes.map((item) => <Pressable key={item.key} onPress={() => { setScanType(item.key); setResult(null); }} style={({ pressed }) => [styles.typeButton, { backgroundColor: scanType === item.key ? colors.primary : colors.surface, borderColor: scanType === item.key ? colors.primary : colors.border }, pressed && { opacity: 0.75 }]}><Text style={[styles.typeText, { color: scanType === item.key ? "#FFFFFF" : colors.foreground }]}>{item.label}</Text></Pressable>)}</View>
         <View style={[styles.cameraCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {Platform.OS !== "web" && permission?.granted ? <CameraView ref={cameraRef} style={styles.camera} facing="back" /> : <View style={styles.webCamera}><IconSymbol name="camera.fill" size={34} color={colors.primary} /><Text style={[styles.webCameraTitle, { color: colors.foreground }]}>Viseur prêt</Text><Text style={[styles.webCameraCopy, { color: colors.muted }]}>Sur iPhone, la caméra s’ouvrira ici pour cadrer votre document.</Text></View>}
-          <View pointerEvents="none" style={styles.scanOverlay}><View style={[styles.corner, styles.cornerTopLeft, { borderColor: colors.warning }]} /><View style={[styles.corner, styles.cornerTopRight, { borderColor: colors.warning }]} /><View style={[styles.corner, styles.cornerBottomLeft, { borderColor: colors.warning }]} /><View style={[styles.corner, styles.cornerBottomRight, { borderColor: colors.warning }]} /></View>
+          <View style={[styles.scanOverlay, { pointerEvents: "none" }]}><View style={[styles.corner, styles.cornerTopLeft, { borderColor: colors.warning }]} /><View style={[styles.corner, styles.cornerTopRight, { borderColor: colors.warning }]} /><View style={[styles.corner, styles.cornerBottomLeft, { borderColor: colors.warning }]} /><View style={[styles.corner, styles.cornerBottomRight, { borderColor: colors.warning }]} /></View>
           <View style={styles.cameraHint}><Text style={styles.cameraHintText}>Cadrez les prix et la devise</Text></View>
         </View>
         {!permission?.granted && Platform.OS !== "web" ? <Pressable onPress={requestPermission} style={({ pressed }) => [styles.permissionButton, { backgroundColor: colors.primary }, pressed && { opacity: 0.75 }]}><IconSymbol name="camera.fill" size={18} color="#FFFFFF" /><Text style={styles.permissionText}>Autoriser la caméra</Text></Pressable> : <Pressable onPress={capture} disabled={isAnalyzing} style={({ pressed }) => [styles.captureButton, { backgroundColor: colors.primary }, pressed && { opacity: 0.78, transform: [{ scale: 0.98 }] }]}><View style={styles.captureInner}>{isAnalyzing ? <IconSymbol name="arrow.clockwise" size={22} color={colors.primary} /> : <IconSymbol name="viewfinder" size={25} color={colors.primary} />}</View><Text style={styles.captureText}>{isAnalyzing ? "Analyse en cours…" : "Analyser maintenant"}</Text></Pressable>}

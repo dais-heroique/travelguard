@@ -18,3 +18,11 @@
 - [x] Vérification visuelle des écrans et responsive web preview
 - [ ] Checkpoint final livrable
 - [x] Corriger la prévisualisation web après conflit d’import react-native-maps
+- [x] Corriger le sizing du texte et les safe areas en bas sur iPhone
+- [x] Revoir la palette TravelGuard avec contraste et confort visuel
+- [x] Ajouter un onboarding approfondi au premier lancement
+- [x] Persister l’état de fin d’onboarding localement
+- [x] Demander la localisation avec écran pédagogique puis permission native
+- [x] Gérer permission localisation refusée, limitée et ouverture des réglages
+- [x] Préparer les métadonnées et permissions iOS pour Xcode/App Store
+- [ ] Vérifier le rendu iOS portrait et les zones sûres après refonte

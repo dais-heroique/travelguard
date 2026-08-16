@@ -50,9 +50,15 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: env.iosBundleId,
+    buildNumber: "1",
     "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+      "CFBundleDisplayName": "TravelGuard",
+      "ITSAppUsesNonExemptEncryption": false,
+      "NSCameraUsageDescription": "TravelGuard utilise la caméra pour vérifier les menus, additions et billets.",
+      "NSLocationWhenInUseUsageDescription": "TravelGuard utilise votre position pendant l’utilisation pour afficher les risques et prix à proximité.",
+      "NSLocationAlwaysAndWhenInUseUsageDescription": "TravelGuard peut utiliser votre position pour préparer les alertes de zones à risque.",
+      "NSUserNotificationUsageDescription": "TravelGuard vous prévient lorsqu’un signal de risque est proche de vous."
+    }
   },
   android: {
     adaptiveIcon: {

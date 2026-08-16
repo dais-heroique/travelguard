@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { NativeRiskMap } from "@/components/native-risk-map";
 import { ScreenContainer } from "@/components/screen-container";
@@ -13,6 +14,7 @@ const filters: { key: RiskCategory | "all"; label: string }[] = [
 
 export default function MapScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const [selectedFilter, setSelectedFilter] = useState<RiskCategory | "all">("all");
   const [selectedPlace, setSelectedPlace] = useState<RiskPlace | null>(riskPlaces[0]);
   const places = useMemo(() => selectedFilter === "all" ? riskPlaces : riskPlaces.filter((place) => place.category === selectedFilter), [selectedFilter]);
@@ -20,7 +22,7 @@ export default function MapScreen() {
   return (
     <ScreenContainer edges={["top", "left", "right"]} containerClassName="bg-background">
       <View style={styles.header}><View><Text style={[styles.eyebrow, { color: colors.muted }]}>ZONE DE VIGILANCE</Text><Text style={[styles.title, { color: colors.foreground }]}>Carte des risques</Text></View><View style={[styles.locationBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}><IconSymbol name="location.fill" size={16} color={colors.primary} /><Text style={[styles.locationText, { color: colors.foreground }]}>Paris</Text></View></View>
-      <FlatList data={places} keyExtractor={(item) => item.id} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content} ListHeaderComponent={<>
+      <FlatList data={places} keyExtractor={(item) => item.id} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 96, 112) }]} ListHeaderComponent={<>
         <View style={[styles.mapCard, { borderColor: colors.border, backgroundColor: colors.surface }]}><NativeRiskMap places={places} onSelect={setSelectedPlace} /></View>
         <FlatList data={filters} horizontal keyExtractor={(item) => item.key} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList} renderItem={({ item }) => <Pressable onPress={() => setSelectedFilter(item.key)} style={({ pressed }) => [styles.filter, { backgroundColor: selectedFilter === item.key ? colors.primary : colors.surface, borderColor: selectedFilter === item.key ? colors.primary : colors.border }, pressed && { opacity: 0.75 }]}><Text style={[styles.filterText, { color: selectedFilter === item.key ? "#FFFFFF" : colors.foreground }]}>{item.label}</Text></Pressable>} />
         <View style={styles.sectionHeader}><Text style={[styles.sectionTitle, { color: colors.foreground }]}>Signaux à proximité</Text><Text style={[styles.count, { color: colors.muted }]}>{places.length} lieux</Text></View>

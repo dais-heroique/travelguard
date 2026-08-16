@@ -1,6 +1,7 @@
 import "@/global.css";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -31,11 +32,20 @@ export default function RootLayout() {
   const initialFrame = initialWindowMetrics?.frame ?? DEFAULT_WEB_FRAME;
 
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
+  const [, setOnboardingComplete] = useState<boolean | null>(null);
   const [frame, setFrame] = useState<Rect>(initialFrame);
 
   // Initialize Manus runtime for cookie injection from parent container
   useEffect(() => {
     initManusRuntime();
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem("@travelguard/onboarding-complete").then((value) => {
+      const complete = value === "true";
+      setOnboardingComplete(complete);
+      router.replace((complete ? "/(tabs)" : "/onboarding") as never);
+    });
   }, []);
 
   const handleSafeAreaUpdate = useCallback((metrics: Metrics) => {
@@ -87,6 +97,7 @@ export default function RootLayout() {
           {/* in order for ios apps tab switching to work properly, use presentation: "fullScreenModal" for login page, whenever you decide to use presentation: "modal*/}
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="onboarding" />
             <Stack.Screen name="oauth/callback" />
           </Stack>
           <StatusBar style="auto" />

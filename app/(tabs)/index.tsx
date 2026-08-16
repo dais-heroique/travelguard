@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -14,6 +15,7 @@ const actions = [
 
 export default function HomeScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
 
   return (
     <ScreenContainer className="px-5" containerClassName="bg-background">
@@ -21,7 +23,7 @@ export default function HomeScreen() {
         data={fairPrices.slice(0, 3)}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 96, 112) }]}
         ListHeaderComponent={
           <View>
             <View style={styles.headerRow}>

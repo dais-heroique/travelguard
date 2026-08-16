@@ -1,6 +1,7 @@
 import { useState } from "react";
 import * as Location from "expo-location";
 import { Alert, FlatList, Linking, Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -9,6 +10,7 @@ import { useColors } from "@/hooks/use-colors";
 
 export default function SafetyScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const [alertsEnabled, setAlertsEnabled] = useState(true);
   const [offlineEnabled, setOfflineEnabled] = useState(true);
   const [activePhrase, setActivePhrase] = useState(0);
@@ -32,7 +34,7 @@ export default function SafetyScreen() {
 
   return (
     <ScreenContainer edges={["top", "left", "right"]} containerClassName="bg-background">
-      <FlatList data={fairPrices} keyExtractor={(item) => item.id} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} ListHeaderComponent={<>
+      <FlatList data={fairPrices} keyExtractor={(item) => item.id} contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 96, 112) }]} showsVerticalScrollIndicator={false} ListHeaderComponent={<>
         <View style={styles.header}><View><Text style={[styles.eyebrow, { color: colors.muted }]}>PROTECTION ET RÉFÉRENCES</Text><Text style={[styles.title, { color: colors.foreground }]}>Sécurité</Text></View><View style={[styles.safeBadge, { backgroundColor: `${colors.success}18` }]}><IconSymbol name="shield.fill" size={17} color={colors.success} /><Text style={[styles.safeText, { color: colors.success }]}>Active</Text></View></View>
         <View style={[styles.sosCard, { backgroundColor: colors.error }]}><View style={styles.sosTop}><View><Text style={styles.sosKicker}>BESOIN D’AIDE ?</Text><Text style={styles.sosTitle}>Gardez vos phrases prêtes.</Text></View><IconSymbol name="shield.fill" size={28} color="#FFFFFF" /></View><Text style={styles.sosCopy}>Affichez une phrase locale ou contactez les secours sans chercher dans vos réglages.</Text><View style={styles.sosActions}><Pressable onPress={callEmergency} style={({ pressed }) => [styles.sosAction, pressed && { opacity: 0.75 }]}><IconSymbol name="phone.fill" size={18} color={colors.error} /><Text style={styles.sosActionText}>Secours</Text></Pressable><Pressable onPress={() => setActivePhrase((activePhrase + 1) % sosPhrases.length)} style={({ pressed }) => [styles.sosAction, pressed && { opacity: 0.75 }]}><IconSymbol name="speaker.wave.2.fill" size={18} color={colors.error} /><Text style={styles.sosActionText}>Phrase locale</Text></Pressable></View></View>
         <View style={[styles.phraseCard, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={styles.phraseHeader}><Text style={[styles.sectionTitle, { color: colors.foreground }]}>À afficher maintenant</Text><Text style={[styles.language, { color: colors.primary }]}>{sosPhrases[activePhrase].language}</Text></View><Text style={[styles.phraseLocal, { color: colors.foreground }]}>{sosPhrases[activePhrase].local}</Text><Text style={[styles.phraseTranslation, { color: colors.muted }]}>{sosPhrases[activePhrase].translation}</Text><Pressable onPress={() => setActivePhrase((activePhrase + 1) % sosPhrases.length)} style={({ pressed }) => [styles.nextPhrase, { borderColor: colors.border }, pressed && { opacity: 0.75 }]}><IconSymbol name="arrow.clockwise" size={16} color={colors.primary} /><Text style={[styles.nextPhraseText, { color: colors.primary }]}>Changer de phrase</Text></Pressable></View>

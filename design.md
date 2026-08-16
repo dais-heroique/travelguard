@@ -65,3 +65,11 @@ Le bleu nuit et le turquoise construisent la confiance sans donner une tonalité
 ## États et accessibilité
 
 Chaque fonctionnalité doit prévoir les états chargement, succès, indisponible hors ligne, permission refusée et erreur récupérable. Les contrastes doivent rester lisibles en extérieur, les boutons doivent être compréhensibles sans la couleur seule et les textes essentiels doivent respecter une taille confortable pour une lecture rapide.
+
+## Refonte UX demandée
+
+Le premier lancement suit un onboarding en plusieurs étapes courtes et interactives : promesse TravelGuard, choix du profil de voyage, sélection des risques prioritaires, explication du scanner, démonstration du juste prix, choix de la ville principale, puis écran pédagogique dédié à la localisation avant la demande système. La durée visée est d’environ cinq minutes lorsque l’utilisateur explore les détails, tout en conservant une progression visible et une option claire de passer une étape.
+
+La palette est revue vers un fond ivoire très clair, un bleu encre pour la lisibilité, un turquoise protecteur pour les actions positives, un ambre réservé aux vérifications et un corail réservé au SOS. Aucun effet de couleur ne doit réduire le contraste ou provoquer de fatigue ; les accents servent à hiérarchiser l’information et restent accompagnés de texte ou d’icônes.
+
+Tous les écrans mobiles doivent respecter les safe areas iOS, inclure un espacement inférieur calculé avec les insets, maintenir une taille minimale de cible tactile de 44 points et éviter les textes collés à la tab bar ou à l’indicateur d’accueil.
