@@ -26,6 +26,13 @@
 - [x] Gérer permission localisation refusée, limitée et ouverture des réglages
 - [x] Préparer les métadonnées et permissions iOS pour Xcode/App Store
 - [ ] Vérifier le rendu iOS portrait et les zones sûres après refonte
-- [x] Générer le dossier iOS natif ouvrable dans Xcode
-- [x] Vérifier le workspace/projet Xcode, bundle ID et permissions
-- [x] Ajouter un guide macOS pour ouvrir, lancer et archiver TravelGuard
+- [ ] Résoudre l’erreur SwiftCompile dans ExpoModulesProvider sur Xcode
+- [ ] Déplacer Derived Data Xcode vers le disque externe Data3
+- [ ] Nettoyer les anciens caches Xcode après déplacement
+- [ ] Vérifier que le projet iOS complet, et pas seulement les fichiers Xcode, est présent sur Data3
+- [ ] Reconfigurer les chemins persistants de Derived Data et Pods sur Data3
+- [ ] Vérifier la sauvegarde et la structure du disque Data3 avant toute partition APFS
+- [ ] Choisir la taille APFS adaptée au stockage Xcode et Derived Data
+- [x] Ajouter la permission réseau local iOS pour le dev client Metro
+- [ ] Tester le bundle JavaScript sur iPhone via le même réseau Wi-Fi
+- [ ] Préparer une build iOS autonome sans dépendance à Metro

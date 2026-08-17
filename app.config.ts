@@ -55,6 +55,8 @@ const config: ExpoConfig = {
       "CFBundleDisplayName": "TravelGuard",
       "ITSAppUsesNonExemptEncryption": false,
       "NSCameraUsageDescription": "TravelGuard utilise la caméra pour vérifier les menus, additions et billets.",
+      "NSLocalNetworkUsageDescription": "TravelGuard utilise le réseau local pour charger l’application depuis votre Mac pendant le développement.",
+      "NSBonjourServices": ["_expo._tcp", "_http._tcp"],
       "NSLocationWhenInUseUsageDescription": "TravelGuard utilise votre position pendant l’utilisation pour afficher les risques et prix à proximité.",
       "NSLocationAlwaysAndWhenInUseUsageDescription": "TravelGuard peut utiliser votre position pour préparer les alertes de zones à risque.",
       "NSUserNotificationUsageDescription": "TravelGuard vous prévient lorsqu’un signal de risque est proche de vous."
@@ -94,6 +96,19 @@ const config: ExpoConfig = {
     ["expo-camera", { cameraPermission: "TravelGuard utilise la caméra pour vérifier menus, additions et billets." }],
     ["expo-location", { locationWhenInUsePermission: "TravelGuard utilise votre position pour afficher les risques à proximité.", locationAlwaysAndWhenInUsePermission: "TravelGuard utilise votre position pour vous alerter dans les zones à risque." }],
     "expo-router",
+    [
+      "expo-audio",
+      {
+        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",
+      },
+    ],
+    [
+      "expo-video",
+      {
+        supportsBackgroundPlayback: true,
+        supportsPictureInPicture: true,
+      },
+    ],
     [
       "expo-splash-screen",
       {
