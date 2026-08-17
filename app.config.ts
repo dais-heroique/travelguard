@@ -93,6 +93,9 @@ const config: ExpoConfig = {
     favicon: "./assets/images/favicon.png",
   },
   plugins: [
+    "expo-asset",
+    "expo-font",
+    "expo-web-browser",
     ["expo-camera", { cameraPermission: "TravelGuard utilise la caméra pour vérifier menus, additions et billets." }],
     ["expo-location", { locationWhenInUsePermission: "TravelGuard utilise votre position pour afficher les risques à proximité.", locationAlwaysAndWhenInUsePermission: "TravelGuard utilise votre position pour vous alerter dans les zones à risque." }],
     "expo-router",

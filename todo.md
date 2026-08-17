@@ -35,9 +35,13 @@
 - [ ] Choisir la taille APFS adaptée au stockage Xcode et Derived Data
 - [x] Ajouter la permission réseau local iOS pour le dev client Metro
 - [ ] Tester le bundle JavaScript sur iPhone via le même réseau Wi-Fi
-- [ ] Préparer une build iOS autonome sans dépendance à Metro
-- [ ] Résoudre le refus de connexion iPhone vers Metro sur 192.168.1.23:8081
+- [x] Préparer une build iOS autonome sans dépendance à Metro
+- [x] Résoudre le refus de connexion iPhone vers Metro sur 192.168.1.23:8081
 - [x] Intégrer le bundle JavaScript dans une build iOS autonome sans Metro
 - [x] Rendre les fonctions essentielles disponibles sans connexion réseau
 - [ ] Ajouter un état réseau clair et une synchronisation différée
 - [x] Documenter la génération d’une archive TestFlight/App Store autonome
+- [x] Auditer tous les écrans, routes, imports et dépendances
+- [x] Vérifier les permissions natives et les parcours premier lancement
+- [x] Vérifier la build Release sans Metro et les fonctions hors ligne
+- [x] Corriger les problèmes reproductibles et documenter les limites
