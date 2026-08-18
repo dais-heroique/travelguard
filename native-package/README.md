@@ -1,11 +1,5 @@
-# TravelGuard — projet iOS natif
+# TravelGuard Native iOS
 
-Ouvre directement `TravelGuard.xcodeproj` avec Xcode. Ce paquet ne nécessite ni Expo, ni Metro, ni Node, ni CocoaPods.
+Native SwiftUI rebuild with no Expo, Metro, Node, or JavaScript runtime dependency. Open `TravelGuard.xcodeproj` on macOS with Xcode.
 
-Dans Xcode :
-1. Sélectionne la cible TravelGuard.
-2. Dans Signing & Capabilities, choisis ta Team Apple.
-3. Sélectionne ton iPhone.
-4. Clique sur Run.
-
-Le schéma partagé lance la configuration Release par défaut. Les permissions caméra, photos et localisation sont déjà déclarées.
+Features: onboarding, location permission, dynamic city, local risk map, Vision OCR from camera/photo, fair-price references, automatic offline status, SOS phrases, and local persistence.

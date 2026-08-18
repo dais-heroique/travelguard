@@ -30,16 +30,16 @@
 		A00000000000000000000007 /* TravelGuard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TravelGuard.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000001 /* Project object */ = {isa = PBXProject; attributes = { LastUpgradeCheck = 1600; ORGANIZATIONNAME = TravelGuard; TargetAttributes = { A00000000000000000000002 = { CreatedOnToolsVersion = 16.0; }; }; }; buildConfigurationList = A00000000000000000000014 /* Build configuration list for PBXProject */; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, fr, Base); mainGroup = A00000000000000000000008; productRefGroup = A00000000000000000000006; projectDirPath = ""; projectRoot = ""; targets = (A00000000000000000000002); };
 		A00000000000000000000008 /* Main group */ = {isa = PBXGroup; children = (A00000000000000000000009, A00000000000000000000006); sourceTree = "<group>"; };
-		A00000000000000000000009 /* TravelGuard group */ = {isa = PBXGroup; children = (			A00000000000000000000020 /* TravelGuardApp.swift */, 
-			A00000000000000000000021 /* Models.swift */, 
-			A00000000000000000000022 /* Services.swift */, 
-			A00000000000000000000023 /* Theme.swift */, 
-			A00000000000000000000024 /* RootView.swift */, 
-			A00000000000000000000025 /* OnboardingView.swift */, 
-			A00000000000000000000026 /* HomeView.swift */, 
-			A00000000000000000000027 /* RiskMapView.swift */, 
-			A00000000000000000000028 /* ScannerView.swift */, 
-			A00000000000000000000029 /* SafetyView.swift */, , A00000000000000000000016 /* Assets.xcassets */, A00000000000000000000018 /* Info.plist */); path = TravelGuard; sourceTree = "<group>"; };
+		A00000000000000000000009 /* TravelGuard group */ = {isa = PBXGroup; children = (			A00000000000000000000020 /* TravelGuardApp.swift */,
+			A00000000000000000000021 /* Models.swift */,
+			A00000000000000000000022 /* Services.swift */,
+			A00000000000000000000023 /* Theme.swift */,
+			A00000000000000000000024 /* RootView.swift */,
+			A00000000000000000000025 /* OnboardingView.swift */,
+			A00000000000000000000026 /* HomeView.swift */,
+			A00000000000000000000027 /* RiskMapView.swift */,
+			A00000000000000000000028 /* ScannerView.swift */,
+			A00000000000000000000029 /* SafetyView.swift */, A00000000000000000000016 /* Assets.xcassets */, A00000000000000000000018 /* Info.plist */); path = TravelGuard; sourceTree = "<group>"; };
 		A00000000000000000000006 /* Products */ = {isa = PBXGroup; children = (A00000000000000000000007); name = Products; sourceTree = "<group>"; };
 		A00000000000000000000002 /* TravelGuard target */ = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000015 /* Build configuration list for PBXNativeTarget "TravelGuard" */; buildPhases = (A00000000000000000000003, A00000000000000000000005, A00000000000000000000004); buildRules = (); dependencies = (); name = TravelGuard; productName = TravelGuard; productReference = A00000000000000000000007; productType = "com.apple.product-type.application"; };
 		A00000000000000000000003 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (		A00000000000000000000120 /* TravelGuardApp.swift in Sources */,
@@ -51,7 +51,7 @@
 		A00000000000000000000126 /* HomeView.swift in Sources */,
 		A00000000000000000000127 /* RiskMapView.swift in Sources */,
 		A00000000000000000000128 /* ScannerView.swift in Sources */,
-		A00000000000000000000129 /* SafetyView.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000129 /* SafetyView.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
 		A00000000000000000000005 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		A00000000000000000000004 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000017); runOnlyForDeploymentPostprocessing = 0; };
 		A00000000000000000000014 = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000010, A00000000000000000000011); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };

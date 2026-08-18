@@ -393,8 +393,8 @@ ids = {
 for i, name in enumerate(swift_files, start=20):
     ids[name] = f'A000000000000000000000{i:02d}'
     ids[name+'build'] = f'A000000000000000000001{i:02d}'
-source_builds = '\n'.join(f'\t\t{ids[name+"build"]} /* {name} in Sources */,' for name in swift_files)
-source_refs = '\n'.join(f'\t\t\t{ids[name]} /* {name} */, ' for name in swift_files)
+source_builds = ',\n'.join(f'\t\t{ids[name+"build"]} /* {name} in Sources */' for name in swift_files)
+source_refs = ',\n'.join(f'\t\t\t{ids[name]} /* {name} */' for name in swift_files)
 source_file_objs = '\n'.join(f'\t\t{ids[name+"build"]} /* {name} in Sources */ = {{isa = PBXBuildFile; fileRef = {ids[name]} /* {name} */; }};' for name in swift_files)
 file_refs = '\n'.join(f'\t\t{ids[name]} /* {name} */ = {{isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = {name}; sourceTree = "<group>"; }};' for name in swift_files)
 pbx = f'''// !$*UTF8*$!
