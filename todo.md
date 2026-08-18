@@ -68,3 +68,6 @@
 - [x] Placer TravelGuard.xcodeproj directement à la racine du paquet natif
 - [x] Rendre le paquet indépendant d’Expo, Metro, Node et CocoaPods
 - [ ] Vérifier le lancement après sélection Team et iPhone dans Xcode
+- [x] Auditer et améliorer les parcours SwiftUI du paquet natif
+- [x] Compléter OCR, localisation, carte et hors ligne en natif
+- [ ] Vérifier la compilation et le lancement Xcode sur iPhone

@@ -83,6 +83,7 @@ final class TravelGuardStore: ObservableObject {
     @Published var priorities: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "priorities") ?? [])
     let location = LocationService()
     let network = NetworkMonitor()
+    @Published var selectedTab = 0
 
     init() {
         onboardingComplete = UserDefaults.standard.bool(forKey: "onboardingComplete")

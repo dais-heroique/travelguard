@@ -13,12 +13,13 @@ struct RootView: View {
 }
 
 struct MainTabView: View {
+    @EnvironmentObject private var store: TravelGuardStore
     var body: some View {
-        TabView {
-            HomeView().tabItem { Label("Accueil", systemImage: "house.fill") }
-            RiskMapView().tabItem { Label("Carte", systemImage: "map.fill") }
-            ScannerView().tabItem { Label("Scanner", systemImage: "viewfinder") }
-            SafetyView().tabItem { Label("Sécurité", systemImage: "shield.fill") }
+        TabView(selection: $store.selectedTab) {
+            HomeView().tabItem { Label("Accueil", systemImage: "house.fill") }.tag(0)
+            RiskMapView().tabItem { Label("Carte", systemImage: "map.fill") }.tag(1)
+            ScannerView().tabItem { Label("Scanner", systemImage: "viewfinder") }.tag(2)
+            SafetyView().tabItem { Label("Sécurité", systemImage: "shield.fill") }.tag(3)
         }
     }
 }
