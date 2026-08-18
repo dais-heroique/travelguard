@@ -96,7 +96,7 @@
 - [x] Corriger le bundle Release sans CFBundleIdentifier signalé par CoreDevice
 - [x] Vérifier la présence de CFBundleIdentifier dans l’Info.plist embarqué avant publication
 
-- [ ] Réparer le bouton Continuer de l’onboarding natif
-- [ ] Afficher la position réelle de l’utilisateur sur la carte
-- [ ] Garantir des risques visibles par défaut sur la carte
-- [ ] Ouvrir la carte en plein écran au toucher
+- [x] Réparer le bouton Continuer de l’onboarding natif
+- [x] Afficher la position réelle de l’utilisateur sur la carte
+- [x] Garantir des risques visibles par défaut sur la carte
+- [x] Ouvrir la carte en plein écran au toucher
