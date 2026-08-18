@@ -101,6 +101,6 @@
 - [x] Garantir des risques visibles par défaut sur la carte
 - [x] Ouvrir la carte en plein écran au toucher
 
-- [ ] Afficher un résultat explicite lorsque l’OCR ne détecte aucun texte
-- [ ] Colorer en rouge les lignes ou mots identifiés comme suspects
-- [ ] Remplir Protection active avec statut réseau, ville, position et risques proches
+- [x] Afficher un résultat explicite lorsque l’OCR ne détecte aucun texte
+- [x] Colorer en rouge les lignes ou mots identifiés comme suspects
+- [x] Remplir Protection active avec statut réseau, ville, position et risques proches
