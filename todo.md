@@ -79,3 +79,6 @@
 - [x] Corriger le fichier TravelGuard.xcodeproj invalide signalé par Xcode
 - [x] Vérifier que le project.pbxproj réparé est parseable et que les références sources sont valides
 - [x] Régénérer le ZIP natif après correction du projet Xcode
+
+- [x] Vérifier le contenu exact de l’archive Xcode livrée et éliminer les copies ambiguës
+- [x] Fournir un chemin unique et une commande Mac d’ouverture du projet corrigé
