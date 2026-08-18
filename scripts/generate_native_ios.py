@@ -277,12 +277,27 @@ struct OnboardingView: View {
 struct HomeView: View {
     @EnvironmentObject private var store: TravelGuardStore
     var place: String { store.location.country.isEmpty ? store.location.city : "\\(store.location.city) · \\(store.location.country)" }
+    private var nearbyRisks: [RiskPlace] {
+        guard let coordinate = store.location.coordinate else { return sampleRisks }
+        return sampleRisks.enumerated().map { index, risk in
+            let offsets = [(0.002, 0.002), (-0.002, 0.001), (0.001, -0.002)]; let offset = offsets[index % offsets.count]
+            return RiskPlace(id: risk.id, name: risk.name, category: risk.category, score: risk.score, summary: risk.summary, latitude: coordinate.latitude + offset.0, longitude: coordinate.longitude + offset.1, signals: risk.signals)
+        }
+    }
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack { VStack(alignment: .leading, spacing: 4) { Text("TRAVELGUARD").font(.caption.weight(.heavy)).tracking(1.5).foregroundStyle(TGColor.muted); Text("Voyagez l’esprit léger.").font(.system(size: 29, weight: .bold, design: .rounded)).foregroundStyle(TGColor.ink) }; Spacer(); Text("TG").font(.headline).foregroundStyle(.white).frame(width: 42, height: 42).background(TGColor.teal).clipShape(Circle()) }
-                    VStack(alignment: .leading, spacing: 12) { Label("PROTECTION ACTIVE", systemImage: "checkmark.shield.fill").font(.caption.weight(.heavy)).foregroundStyle(TGColor.mint); Text(place).font(.title2.bold()).foregroundStyle(.white); Text(store.network.isChecking ? "Vérification de la connexion…" : store.network.isOnline ? "Connexion active · données locales prêtes" : "Hors ligne · données locales utilisées").font(.subheadline).foregroundStyle(.white.opacity(0.86)) }.tgCard().background(TGColor.teal).clipShape(RoundedRectangle(cornerRadius: 22))
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("PROTECTION ACTIVE", systemImage: "checkmark.shield.fill").font(.caption.weight(.heavy)).foregroundStyle(TGColor.mint)
+                        Text(place).font(.title2.bold()).foregroundStyle(.white)
+                        HStack(spacing: 14) { Label(store.location.coordinate == nil ? "Position à activer" : "Position détectée", systemImage: "location.fill"); Label(store.network.isOnline ? "En ligne" : "Hors ligne", systemImage: store.network.isOnline ? "wifi" : "wifi.slash") }.font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.88))
+                        Text(store.network.isChecking ? "Vérification de la connexion…" : store.network.isOnline ? "Données locales et alertes prêtes" : "Données locales disponibles sans réseau").font(.subheadline).foregroundStyle(.white.opacity(0.86))
+                        Divider().overlay(.white.opacity(0.25))
+                        Text("\\(nearbyRisks.count) risques surveillés près de vous").font(.subheadline.bold()).foregroundStyle(.white)
+                        ForEach(nearbyRisks.prefix(2)) { risk in HStack(spacing: 8) { Circle().fill(Color.red).frame(width: 8, height: 8); Text(risk.name).font(.caption.weight(.semibold)).foregroundStyle(.white); Spacer(); Text("\\(risk.score)/100").font(.caption.bold()).foregroundStyle(.white.opacity(0.9)) } }
+                    }.tgCard().background(TGColor.teal).clipShape(RoundedRectangle(cornerRadius: 22))
                     Text("Besoin d’un contrôle rapide ?").font(.title3.bold()).foregroundStyle(TGColor.ink)
                     HStack(spacing: 10) { QuickLink(title: "Voir la carte", icon: "map.fill", tab: 1); QuickLink(title: "Scanner", icon: "viewfinder", tab: 2); QuickLink(title: "Juste prix", icon: "checkmark.seal.fill", tab: 3) }
                     Text("Juste prix près de vous").font(.title3.bold()).foregroundStyle(TGColor.ink)
@@ -357,19 +372,44 @@ import Vision
 struct ScannerView: View {
     @State private var selectedItem: PhotosPickerItem?
     @State private var recognizedText = ""
+    @State private var recognizedLines: [String] = []
+    @State private var suspectLines: Set<String> = []
     @State private var isAnalyzing = false
     @State private var showingCamera = false
     var body: some View {
-        NavigationStack { ScrollView { VStack(alignment: .leading, spacing: 18) { Text("CONTRÔLE INTELLIGENT").font(.caption.weight(.heavy)).tracking(1.2).foregroundStyle(TGColor.muted); Text("Scanner avant de payer").font(.largeTitle.bold()); Text("Cadrez un menu, une addition ou un billet. L’analyse locale extrait les textes lisibles et vous aide à repérer ce qui mérite vérification.").foregroundStyle(TGColor.muted)
+        NavigationStack { ScrollView { VStack(alignment: .leading, spacing: 18) {
+            Text("CONTRÔLE INTELLIGENT").font(.caption.weight(.heavy)).tracking(1.2).foregroundStyle(TGColor.muted)
+            Text("Scanner avant de payer").font(.largeTitle.bold())
+            Text("Cadrez un menu, une addition ou un billet. Les lignes qui méritent une vérification apparaissent en rouge.").foregroundStyle(TGColor.muted)
             Button { showingCamera = true } label: { Label("Prendre une photo", systemImage: "camera.fill").font(.headline).foregroundStyle(.white).frame(maxWidth: .infinity).padding().background(TGColor.teal).clipShape(RoundedRectangle(cornerRadius: 16)) }
             PhotosPicker(selection: $selectedItem, matching: .images) { Label("Choisir une photo", systemImage: "photo").font(.headline).foregroundStyle(TGColor.ink).frame(maxWidth: .infinity).padding().background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) }.onChange(of: selectedItem) { _, item in Task { await analyze(item) } }
-            if isAnalyzing { ProgressView("Analyse du texte…").padding(.vertical) }
-            if !recognizedText.isEmpty { VStack(alignment: .leading, spacing: 10) { Text("Texte détecté").font(.headline); Text(recognizedText).font(.body).foregroundStyle(TGColor.muted) }.tgCard() }
-            Text("Hors connexion : la capture et l’extraction du texte restent disponibles. Une comparaison avec des données distantes nécessitera une connexion.").font(.footnote).foregroundStyle(TGColor.muted).padding(.top, 8)
+            if isAnalyzing { ProgressView("Analyse locale du document…").padding(.vertical) }
+            if !recognizedLines.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Résultat du contrôle", systemImage: suspectLines.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill").font(.headline).foregroundStyle(suspectLines.isEmpty ? .green : TGColor.coral)
+                    ForEach(recognizedLines, id: \.self) { line in
+                        Text(line).font(.body.weight(suspectLines.contains(line) ? .semibold : .regular)).foregroundStyle(suspectLines.contains(line) ? .red : TGColor.ink).padding(.vertical, 3)
+                    }
+                    if !suspectLines.isEmpty { Text("Vérifiez ces lignes avant de payer : frais, service, commission ou supplément peuvent être ajoutés.").font(.footnote).foregroundStyle(.red) }
+                }.tgCard()
+            } else if !isAnalyzing {
+                VStack(alignment: .leading, spacing: 8) { Label("Aucun document analysé", systemImage: "viewfinder").font(.headline); Text("Prenez une photo ou choisissez une image pour lancer la détection du texte.").font(.subheadline).foregroundStyle(TGColor.muted) }.tgCard()
+            }
+            Text("Hors connexion : la capture et l’extraction du texte restent disponibles. L’analyse est réalisée localement sur l’iPhone.").font(.footnote).foregroundStyle(TGColor.muted).padding(.top, 8)
         }.padding(20).padding(.bottom, 30) }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).sheet(isPresented: $showingCamera) { CameraPicker { image in Task { await recognize(image) } } } }
     }
     private func analyze(_ item: PhotosPickerItem?) async { guard let item, let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return }; await recognize(image) }
-    @MainActor private func recognize(_ image: UIImage) async { guard let cgImage = image.cgImage else { return }; isAnalyzing = true; let request = VNRecognizeTextRequest { request, _ in let observations = request.results as? [VNRecognizedTextObservation] ?? []; let text = observations.compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\\n"); Task { @MainActor in self.recognizedText = text; self.isAnalyzing = false } }; request.recognitionLevel = .accurate; request.recognitionLanguages = ["fr-FR", "en-US"]; try? VNImageRequestHandler(cgImage: cgImage).perform([request]) }
+    @MainActor private func recognize(_ image: UIImage) async {
+        guard let cgImage = image.cgImage else { return }
+        isAnalyzing = true; recognizedLines = []; suspectLines = []
+        let request = VNRecognizeTextRequest { request, _ in
+            let observations = request.results as? [VNRecognizedTextObservation] ?? []
+            let lines = observations.compactMap { $0.topCandidates(1).first?.string }.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            let suspects = Set(lines.filter { line in let lower = line.lowercased(); return ["service", "frais", "commission", "taxe", "tax", "tip", "extra", "suppl", "tourist", "cash"].contains { lower.contains($0) } })
+            Task { @MainActor in self.recognizedLines = lines.isEmpty ? ["Aucun texte lisible détecté. Rapprochez le document, améliorez la lumière et réessayez."] : lines; self.recognizedText = lines.joined(separator: "\\n"); self.suspectLines = suspects; self.isAnalyzing = false }
+        }
+        request.recognitionLevel = .accurate; request.recognitionLanguages = ["fr-FR", "en-US"]; try? VNImageRequestHandler(cgImage: cgImage).perform([request])
+    }
 }
 
 struct CameraPicker: UIViewControllerRepresentable { let onImage: (UIImage) -> Void; func makeCoordinator() -> Coordinator { Coordinator(onImage: onImage) }; func makeUIViewController(context: Context) -> UIImagePickerController { let picker = UIImagePickerController(); picker.sourceType = .camera; picker.delegate = context.coordinator; return picker }; func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}; final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate { let onImage: (UIImage) -> Void; init(onImage: @escaping (UIImage) -> Void) { self.onImage = onImage }; func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) { if let image = info[.originalImage] as? UIImage { onImage(image) }; picker.dismiss(animated: true) }; func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { picker.dismiss(animated: true) } } }
