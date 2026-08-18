@@ -45,3 +45,8 @@
 - [x] Vérifier les permissions natives et les parcours premier lancement
 - [x] Vérifier la build Release sans Metro et les fonctions hors ligne
 - [x] Corriger les problèmes reproductibles et documenter les limites
+- [x] Corriger le positionnement vertical du contenu sur iPhone
+- [x] Remplacer le statut hors ligne manuel par le vrai état réseau
+- [x] Détecter et afficher la ville réelle depuis la localisation
+- [x] Remplacer « Nomade digital » par « Télétravailleur itinérant »
+- [ ] Tester connecté, hors ligne et localisation refusée

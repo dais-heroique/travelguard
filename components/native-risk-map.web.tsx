@@ -4,13 +4,13 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { scoreTone, type RiskPlace } from "@/lib/travelguard-data";
 import { useColors } from "@/hooks/use-colors";
 
-export function NativeRiskMap({ places, onSelect }: { places: RiskPlace[]; onSelect: (place: RiskPlace) => void }) {
+export function NativeRiskMap({ places, userLocation, onSelect }: { places: RiskPlace[]; userLocation?: { latitude: number; longitude: number }; onSelect: (place: RiskPlace) => void }) {
   const colors = useColors();
   return (
     <View style={styles.map}>
       <View style={[styles.grid, { borderColor: `${colors.primary}20` }]} />
       {places.map((place, index) => <Pressable key={place.id} style={[styles.pin, { left: `${22 + index * 19}%`, top: `${25 + (index % 2) * 24}%`, backgroundColor: scoreTone(place.score).color }]} onPress={() => onSelect(place)}><IconSymbol name="location.fill" size={18} color="#FFFFFF" /></Pressable>)}
-      <View style={styles.label}><Text style={styles.labelText}>Zone actuelle</Text></View>
+      <View style={styles.label}><Text style={styles.labelText}>{userLocation ? "Position actuelle" : "Position à autoriser"}</Text></View>
     </View>
   );
 }

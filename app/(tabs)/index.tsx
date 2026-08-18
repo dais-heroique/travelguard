@@ -6,6 +6,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { fairPrices } from "@/lib/travelguard-data";
 import { useColors } from "@/hooks/use-colors";
+import { formatTravelPlace, useNetworkStatus, useTravelLocation } from "@/hooks/use-travel-status";
 
 const actions = [
   { label: "Voir la carte", detail: "Pièges autour de vous", icon: "map.fill" as const, route: "/(tabs)/map" },
@@ -16,6 +17,10 @@ const actions = [
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { isOnline, isChecking } = useNetworkStatus();
+  const { location, permissionDenied, isLoading: isLocationLoading } = useTravelLocation();
+  const placeLabel = formatTravelPlace(location);
+  const connectionLabel = isChecking ? "Vérification de la connexion…" : isOnline ? "Protection active · connexion disponible" : "Mode hors ligne · données locales";
 
   return (
     <ScreenContainer className="px-5" containerClassName="bg-background">
@@ -36,8 +41,8 @@ export default function HomeScreen() {
 
             <View style={[styles.protectionCard, { backgroundColor: colors.primary }]}>
               <View style={styles.cardTopLine}><View style={styles.liveDot} /><Text style={styles.cardKicker}>PROTECTION ACTIVE</Text></View>
-              <Text style={styles.protectionTitle}>Paris · France</Text>
-              <Text style={styles.protectionCopy}>Aucune alerte critique à proximité. Restez attentif aux prix affichés.</Text>
+              <Text style={styles.protectionTitle}>{isLocationLoading ? "Localisation en cours…" : placeLabel}</Text>
+              <Text style={styles.protectionCopy}>{permissionDenied ? "Autorisez la localisation dans Sécurité pour afficher les risques autour de vous." : connectionLabel}</Text>
               <Pressable style={({ pressed }) => [styles.cardButton, pressed && styles.pressed]} onPress={() => router.push("/(tabs)/map" as never)}>
                 <Text style={styles.cardButtonText}>Explorer la zone</Text><IconSymbol name="chevron.right" size={18} color="#102A43" />
               </Pressable>
@@ -71,7 +76,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingTop: 18, paddingBottom: 32, gap: 12 },
+  content: { paddingTop: 6, paddingBottom: 32, gap: 12 },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
   eyebrow: { fontSize: 12, fontWeight: "800", letterSpacing: 1.6 },
   title: { fontSize: 27, lineHeight: 33, fontWeight: "800", marginTop: 6, maxWidth: 270 },

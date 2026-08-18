@@ -19,7 +19,7 @@ const steps = [
   { eyebrow: "ALERTES DE PROXIMITÉ", title: "Recevoir les bons signaux au bon moment.", body: "Pour afficher les risques autour de vous, TravelGuard a besoin de votre position pendant l’utilisation. Vous pourrez gérer ce choix dans Réglages.", icon: "location.fill" as const, action: "Comprendre puis autoriser" },
 ];
 
-const travelerOptions = ["Vacancier", "Backpacker", "Nomade digital", "Voyageur fréquent"];
+const travelerOptions = ["Vacancier", "Backpacker", "Télétravailleur itinérant", "Voyageur fréquent"];
 const priorityOptions = ["Menus gonflés", "Taxis abusifs", "Change douteux", "Billets non officiels"];
 
 export default function OnboardingScreen() {
