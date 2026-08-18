@@ -92,3 +92,6 @@
 
 - [x] Corriger les objets PBX auxquels il manque la clé obligatoire isa
 - [x] Ajouter une validation stricte des objets PBX avant toute nouvelle livraison
+
+- [ ] Corriger le bundle Release sans CFBundleIdentifier signalé par CoreDevice
+- [ ] Vérifier la présence de CFBundleIdentifier dans l’Info.plist embarqué avant publication
