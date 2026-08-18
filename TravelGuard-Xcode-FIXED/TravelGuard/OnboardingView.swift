@@ -35,7 +35,7 @@ struct OnboardingView: View {
             }.tabViewStyle(.page(indexDisplayMode: .never))
             VStack(spacing: 10) {
                 if page == 5 { priorityPicker }
-                Button(page == pages.count - 1 ? "Activer ma protection" : "Continuer") { next() }.font(.headline).foregroundStyle(.white).frame(maxWidth: .infinity).padding(.vertical, 16).background(TGColor.teal).clipShape(RoundedRectangle(cornerRadius: 16)).padding(.horizontal, 20)
+                Button(action: next) { Text(page == pages.count - 1 ? "Activer ma protection" : "Continuer").font(.headline).foregroundStyle(.white).frame(maxWidth: .infinity).padding(.vertical, 16).contentShape(Rectangle()) }.buttonStyle(.plain).background(TGColor.teal).clipShape(RoundedRectangle(cornerRadius: 16)).padding(.horizontal, 20).zIndex(2)
             }.padding(.bottom, 12)
         }.background(TGColor.ivory.ignoresSafeArea())
     }

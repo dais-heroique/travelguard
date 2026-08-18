@@ -16,6 +16,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         super.init()
         manager.delegate = self
         authorization = manager.authorizationStatus
+        if authorization == .authorizedWhenInUse || authorization == .authorizedAlways { manager.requestLocation() }
         if let latitude = UserDefaults.standard.object(forKey: "lastLatitude") as? Double, let longitude = UserDefaults.standard.object(forKey: "lastLongitude") as? Double {
             coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
             city = UserDefaults.standard.string(forKey: "lastCity") ?? city
@@ -24,7 +25,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func requestPermission() {
-        manager.requestWhenInUseAuthorization()
+        if authorization == .authorizedWhenInUse || authorization == .authorizedAlways { manager.requestLocation() } else { manager.requestWhenInUseAuthorization() }
     }
 
     func refresh() {
