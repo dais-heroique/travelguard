@@ -56,3 +56,6 @@
 - [x] Configurer un schéma Xcode Release autonome sans Metro
 - [x] Vérifier que le bundle JavaScript est intégré à la cible iOS
 - [ ] Tester le lancement en coupant le réseau et tout processus Mac
+- [ ] Valider les commandes Debug Metro et Release autonome
+- [ ] Publier les derniers scripts et réglages dans GitHub dais-heroique/travelguard
+- [ ] Documenter les commandes Mac pour chaque mode de lancement
