@@ -59,3 +59,9 @@
 - [ ] Valider les commandes Debug Metro et Release autonome
 - [ ] Publier les derniers scripts et réglages dans GitHub dais-heroique/travelguard
 - [ ] Documenter les commandes Mac pour chaque mode de lancement
+- [ ] Synchroniser le dossier Mac avec le commit GitHub 43a1701 et rendre ios:standalone disponible
+- [x] Créer un projet iOS natif SwiftUI séparé de l’application Expo
+- [x] Recréer le thème, les modèles locaux et la navigation en Swift
+- [x] Recréer onboarding, localisation, carte, scanner, juste prix, hors ligne et SOS en Swift
+- [x] Ajouter permissions iOS, configuration Xcode et bundle ID natif
+- [ ] Compiler et tester la version native sur iPhone
