@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import shutil
 
 ROOT = Path('/home/ubuntu/travelguard/native-ios')
 APP = ROOT / 'TravelGuard'
@@ -368,13 +369,16 @@ struct SafetyView: View {
 </dict></plist>
 ''',
 'Assets.xcassets/Contents.json': '{"info":{"author":"xcode","version":1}}',
-'Assets.xcassets/AppIcon.appiconset/Contents.json': '{"images":[],"info":{"author":"xcode","version":1}}',
+'Assets.xcassets/AppIcon.appiconset/Contents.json': '{"images":[{"filename":"Icon-1024.png","idiom":"universal","platform":"ios","size":"1024x1024"}],"info":{"author":"xcode","version":1}}',
 'Assets.xcassets/LaunchBackground.colorset/Contents.json': '{"colors":[{"idiom":"universal","color":{"color-space":"srgb","components":{"alpha":"1.000","blue":"0.930","green":"0.970","red":"0.980"}}}],"info":{"author":"xcode","version":1}}',
 }
 for rel, content in files.items():
     path = APP / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
+source_icon = Path('/home/ubuntu/travelguard/assets/images/icon.png')
+if source_icon.exists():
+    shutil.copyfile(source_icon, APP / 'Assets.xcassets' / 'AppIcon.appiconset' / 'Icon-1024.png')
 
 # Minimal Xcode project generated with deterministic UUIDs.
 swift_files = [p.name for p in APP.glob('*.swift')]

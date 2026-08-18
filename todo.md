@@ -65,3 +65,6 @@
 - [x] Recréer onboarding, localisation, carte, scanner, juste prix, hors ligne et SOS en Swift
 - [x] Ajouter permissions iOS, configuration Xcode et bundle ID natif
 - [ ] Compiler et tester la version native sur iPhone
+- [x] Placer TravelGuard.xcodeproj directement à la racine du paquet natif
+- [x] Rendre le paquet indépendant d’Expo, Metro, Node et CocoaPods
+- [ ] Vérifier le lancement après sélection Team et iPhone dans Xcode
