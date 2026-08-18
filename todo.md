@@ -71,3 +71,7 @@
 - [x] Auditer et améliorer les parcours SwiftUI du paquet natif
 - [x] Compléter OCR, localisation, carte et hors ligne en natif
 - [ ] Vérifier la compilation et le lancement Xcode sur iPhone
+- [x] Mesurer la taille des dossiers Expo, natif et assets
+- [x] Créer un livrable SwiftUI séparé sans l’ancien projet Expo
+- [x] Compresser ou retirer les assets natifs inutilisés
+- [x] Vérifier la taille finale et les fonctions conservées
