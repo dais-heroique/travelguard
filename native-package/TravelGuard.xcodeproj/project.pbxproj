@@ -33,7 +33,7 @@
 		A00000000000000000000029 /* TravelGuardApp.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravelGuardApp.swift; sourceTree = "<group>"; };
 		A00000000000000000000016 /* Assets.xcassets */ = { isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A00000000000000000000018 /* Info.plist */ = { isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		A00000000000000000000007 /* TravelGuard.app */ = { explicitFileType = wrapper.application; includeInIndex = 0; path = TravelGuard.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000007 /* TravelGuard.app */ = { isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TravelGuard.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */

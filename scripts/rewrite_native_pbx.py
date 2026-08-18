@@ -62,7 +62,7 @@ pbx = f'''// !$*UTF8*$!
 {ref_objects}
 \t\t{ids['assetRef']} /* Assets.xcassets */ = {{ isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; }};
 \t\t{ids['plistRef']} /* Info.plist */ = {{ isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; }};
-\t\t{ids['appref']} /* TravelGuard.app */ = {{ explicitFileType = wrapper.application; includeInIndex = 0; path = TravelGuard.app; sourceTree = BUILT_PRODUCTS_DIR; }};
+\t\t{ids['appref']} /* TravelGuard.app */ = {{ isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TravelGuard.app; sourceTree = BUILT_PRODUCTS_DIR; }};
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */

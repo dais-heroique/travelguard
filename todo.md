@@ -89,3 +89,6 @@
 
 - [x] Remplacer complètement la structure PBX du projet publié après parse error Xcode persistant
 - [x] Vérifier le projet corrigé avec une validation PBX plus stricte avant publication
+
+- [ ] Corriger les objets PBX auxquels il manque la clé obligatoire isa
+- [ ] Ajouter une validation stricte des objets PBX avant toute nouvelle livraison
