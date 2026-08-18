@@ -86,3 +86,6 @@
 - [x] Synchroniser le projet natif SwiftUI corrigé vers GitHub
 - [x] Vérifier le contenu du dépôt distant après synchronisation
 - [x] Documenter les commandes Mac pour cloner, reconstruire et ouvrir le projet Xcode
+
+- [ ] Remplacer complètement la structure PBX du projet publié après parse error Xcode persistant
+- [ ] Vérifier le projet corrigé avec une validation PBX plus stricte avant publication
