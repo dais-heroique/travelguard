@@ -83,6 +83,6 @@
 - [x] Vérifier le contenu exact de l’archive Xcode livrée et éliminer les copies ambiguës
 - [x] Fournir un chemin unique et une commande Mac d’ouverture du projet corrigé
 
-- [ ] Synchroniser le projet natif SwiftUI corrigé vers GitHub
-- [ ] Vérifier le contenu du dépôt distant après synchronisation
-- [ ] Documenter les commandes Mac pour cloner, reconstruire et ouvrir le projet Xcode
+- [x] Synchroniser le projet natif SwiftUI corrigé vers GitHub
+- [x] Vérifier le contenu du dépôt distant après synchronisation
+- [x] Documenter les commandes Mac pour cloner, reconstruire et ouvrir le projet Xcode
