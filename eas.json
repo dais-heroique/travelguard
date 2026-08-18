@@ -15,6 +15,7 @@
       }
     },
     "production": {
+      "developmentClient": false,
       "autoIncrement": true,
       "distribution": "store",
       "ios": {

@@ -50,3 +50,9 @@
 - [x] Détecter et afficher la ville réelle depuis la localisation
 - [x] Remplacer « Nomade digital » par « Télétravailleur itinérant »
 - [ ] Tester connecté, hors ligne et localisation refusée
+- [ ] Remplacer le dossier local par le dépôt GitHub dais-heroique/travelguard avec sauvegarde de l’ancien
+- [ ] Réinstaller les dépendances et régénérer le projet iOS depuis le dépôt
+- [ ] Ouvrir et vérifier le workspace Xcode issu du dépôt
+- [x] Configurer un schéma Xcode Release autonome sans Metro
+- [x] Vérifier que le bundle JavaScript est intégré à la cible iOS
+- [ ] Tester le lancement en coupant le réseau et tout processus Mac
