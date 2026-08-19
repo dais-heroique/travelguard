@@ -106,3 +106,6 @@
 - [x] Remplir Protection active avec statut réseau, ville, position et risques proches
 
 - [x] Corriger l’erreur SwiftUI onChange sur CLLocationCoordinate2D non Equatable
+
+- [ ] Remplacer les points rouges de Protection active par des indicateurs de risque explicites
+- [ ] Corriger la carte plein écran vide et ajouter zoom, déplacement et contrôles utilisateur

@@ -296,7 +296,7 @@ struct HomeView: View {
                         Text(store.network.isChecking ? "Vérification de la connexion…" : store.network.isOnline ? "Données locales et alertes prêtes" : "Données locales disponibles sans réseau").font(.subheadline).foregroundStyle(.white.opacity(0.86))
                         Divider().overlay(.white.opacity(0.25))
                         Text("\\(nearbyRisks.count) risques surveillés près de vous").font(.subheadline.bold()).foregroundStyle(.white)
-                        ForEach(nearbyRisks.prefix(2)) { risk in HStack(spacing: 8) { Circle().fill(Color.red).frame(width: 8, height: 8); Text(risk.name).font(.caption.weight(.semibold)).foregroundStyle(.white); Spacer(); Text("\\(risk.score)/100").font(.caption.bold()).foregroundStyle(.white.opacity(0.9)) } }
+                        ForEach(nearbyRisks.prefix(2)) { risk in HStack(spacing: 9) { Image(systemName: risk.category == "Taxi" ? "car.fill" : risk.category == "Change" ? "banknote.fill" : "fork.knife").font(.caption.bold()).foregroundStyle(.white).frame(width: 26, height: 26).background(TGColor.coral).clipShape(Circle()); VStack(alignment: .leading, spacing: 2) { Text(risk.category.uppercased()).font(.caption2.bold()).foregroundStyle(.white.opacity(0.72)); Text(risk.name).font(.caption.weight(.semibold)).foregroundStyle(.white) }; Spacer(); Text("Score \\(risk.score)").font(.caption.bold()).foregroundStyle(.white.opacity(0.9)) } }
                     }.tgCard().background(TGColor.teal).clipShape(RoundedRectangle(cornerRadius: 22))
                     Text("Besoin d’un contrôle rapide ?").font(.title3.bold()).foregroundStyle(TGColor.ink)
                     HStack(spacing: 10) { QuickLink(title: "Voir la carte", icon: "map.fill", tab: 1); QuickLink(title: "Scanner", icon: "viewfinder", tab: 2); QuickLink(title: "Juste prix", icon: "checkmark.seal.fill", tab: 3) }
@@ -334,7 +334,7 @@ struct RiskMapView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 HStack { VStack(alignment: .leading) { Text("ZONE DE VIGILANCE").font(.caption.weight(.heavy)).tracking(1.2).foregroundStyle(TGColor.muted); Text("Carte des risques").font(.title.bold()) }; Spacer(); Label(store.location.city, systemImage: "location.fill").font(.caption.bold()).padding(9).background(.white).clipShape(Capsule()) }.padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 12)
-                Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: displayedRisks) { risk in MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) { Button { selected = risk } label: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(TGColor.coral).padding(9).background(.white).clipShape(Circle()).shadow(radius: 3) } } }.frame(height: 260).clipShape(RoundedRectangle(cornerRadius: 22)).padding(.horizontal, 20).overlay(alignment: .bottomTrailing) { if store.location.coordinate == nil { Button { store.location.requestPermission() } label: { Label("Ma position", systemImage: "location.fill").font(.caption.bold()).padding(10).background(.white).clipShape(Capsule()) }.padding(12) } }.contentShape(Rectangle()).onTapGesture { showFullScreen = true }
+                Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: displayedRisks) { risk in MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) { Button { selected = risk } label: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(TGColor.coral).padding(9).background(.white).clipShape(Circle()).shadow(radius: 3) } } }.frame(height: 260).clipShape(RoundedRectangle(cornerRadius: 22)).padding(.horizontal, 20).overlay(alignment: .bottomTrailing) { HStack(spacing: 8) { if store.location.coordinate == nil { Button { store.location.requestPermission() } label: { Image(systemName: "location.fill").padding(10).background(.white).clipShape(Circle()) } }; Button { showFullScreen = true } label: { Image(systemName: "arrow.up.left.and.arrow.down.right").padding(10).background(.white).clipShape(Circle()) } }.padding(12) }
                 ScrollView { VStack(alignment: .leading, spacing: 10) { Text("Signaux à proximité").font(.title3.bold()).padding(.top, 16); ForEach(displayedRisks) { risk in Button { selected = risk } label: { HStack { Text("\\(risk.score)").font(.headline.bold()).foregroundStyle(TGColor.coral).frame(width: 48, height: 48).background(TGColor.coral.opacity(0.1)).clipShape(Circle()); VStack(alignment: .leading) { Text(risk.name).font(.subheadline.bold()); Text("\\(risk.category) · \\(risk.summary)").font(.caption).foregroundStyle(TGColor.muted).lineLimit(2) }; Spacer(); Image(systemName: "chevron.right").foregroundStyle(TGColor.muted) }.foregroundStyle(TGColor.ink).padding(12).background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) } } }.padding(.horizontal, 20).padding(.bottom, 24) }
             }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).onAppear { store.location.refresh(); if let coordinate = store.location.coordinate { region.center = coordinate } }.onChange(of: store.location.city) { _, _ in if let coordinate = store.location.coordinate { region.center = coordinate } }
             .sheet(item: $selected) { risk in RiskDetailView(risk: risk) }
@@ -350,12 +350,18 @@ struct FullScreenRiskMapView: View {
     @Binding var selected: RiskPlace?
     var body: some View {
         NavigationStack {
-            Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: risks) { risk in
-                MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) {
-                    Button { selected = risk } label: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(TGColor.coral).padding(10).background(.white).clipShape(Circle()).shadow(radius: 4) }
-                }
+            ZStack(alignment: .topTrailing) {
+                Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: risks) { risk in
+                    MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) {
+                        Button { selected = risk } label: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(TGColor.coral).padding(10).background(.white).clipShape(Circle()).shadow(radius: 4) }
+                    }
+                }.mapControls { MapCompass(); MapScaleView() }.ignoresSafeArea()
+                VStack(spacing: 2) {
+                    Button { region.span = MKCoordinateSpan(latitudeDelta: max(region.span.latitudeDelta * 0.5, 0.001), longitudeDelta: max(region.span.longitudeDelta * 0.5, 0.001)) } label: { Image(systemName: "plus").frame(width: 40, height: 40) }
+                    Divider().frame(width: 24)
+                    Button { region.span = MKCoordinateSpan(latitudeDelta: min(region.span.latitudeDelta * 2, 2), longitudeDelta: min(region.span.longitudeDelta * 2, 2)) } label: { Image(systemName: "minus").frame(width: 40, height: 40) }
+                }.font(.headline).foregroundStyle(TGColor.ink).background(.white).clipShape(RoundedRectangle(cornerRadius: 12)).shadow(radius: 4).padding(.top, 70).padding(.trailing, 16)
             }
-            .ignoresSafeArea()
             .toolbar { ToolbarItem(placement: .topBarLeading) { Button("Fermer") { dismiss() } } }
             .sheet(item: $selected) { risk in RiskDetailView(risk: risk) }
         }
