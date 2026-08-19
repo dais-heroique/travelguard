@@ -110,6 +110,6 @@
 - [x] Remplacer les points rouges de Protection active par des indicateurs de risque explicites
 - [x] Corriger la carte plein écran vide et ajouter zoom, déplacement et contrôles utilisateur
 
-- [ ] Supprimer les boutons de zoom intrusifs et préserver le zoom MapKit à deux doigts
-- [ ] Repositionner le bouton de recentrage dans la carte plein écran
-- [ ] Rendre Protection active visible et informative sur iPhone
+- [x] Supprimer les boutons de zoom intrusifs et préserver le zoom MapKit à deux doigts
+- [x] Repositionner le bouton de recentrage dans la carte plein écran
+- [x] Rendre Protection active visible et informative sur iPhone
