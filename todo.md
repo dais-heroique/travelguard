@@ -122,5 +122,5 @@
 - [x] Rechercher les défauts de carte, OCR, onboarding et navigation utilisateur
 - [x] Valider les références PBX, Info.plist, schéma Release et archive finale
 
-- [ ] Stabiliser la taille initiale de MapKit et éviter CAMetalLayer width=0
-- [ ] Vérifier le cycle de présentation plein écran de la carte sur iPhone
+- [x] Stabiliser la taille initiale de MapKit et éviter CAMetalLayer width=0
+- [x] Vérifier le cycle de présentation plein écran de la carte sur iPhone
