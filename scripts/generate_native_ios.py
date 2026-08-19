@@ -295,7 +295,7 @@ struct HomeView: View {
                         HStack(spacing: 14) { Label(store.location.coordinate == nil ? "Position à activer" : "Position détectée", systemImage: "location.fill"); Label(store.network.isOnline ? "En ligne" : "Hors ligne", systemImage: store.network.isOnline ? "wifi" : "wifi.slash") }.font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.88))
                         Text(store.network.isChecking ? "Vérification de la connexion…" : store.network.isOnline ? "Données locales et alertes prêtes" : "Données locales disponibles sans réseau").font(.subheadline).foregroundStyle(.white.opacity(0.86))
                         Divider().overlay(.white.opacity(0.25))
-                        Text("\\(nearbyRisks.count) risques surveillés près de vous").font(.subheadline.bold()).foregroundStyle(.white)
+                        Text("\\(nearbyRisks.count) risques surveillés près de vous").font(.subheadline.bold()).foregroundStyle(.white).frame(maxWidth: .infinity, alignment: .leading)
                         ForEach(nearbyRisks.prefix(2)) { risk in HStack(spacing: 9) { Image(systemName: risk.category == "Taxi" ? "car.fill" : risk.category == "Change" ? "banknote.fill" : "fork.knife").font(.caption.bold()).foregroundStyle(.white).frame(width: 26, height: 26).background(TGColor.coral).clipShape(Circle()); VStack(alignment: .leading, spacing: 2) { Text(risk.category.uppercased()).font(.caption2.bold()).foregroundStyle(.white.opacity(0.72)); Text(risk.name).font(.caption.weight(.semibold)).foregroundStyle(.white) }; Spacer(); Text("Score \\(risk.score)").font(.caption.bold()).foregroundStyle(.white.opacity(0.9)) } }
                     }.tgCard().background(TGColor.teal).clipShape(RoundedRectangle(cornerRadius: 22))
                     Text("Besoin d’un contrôle rapide ?").font(.title3.bold()).foregroundStyle(TGColor.ink)
@@ -355,12 +355,7 @@ struct FullScreenRiskMapView: View {
                     MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) {
                         Button { selected = risk } label: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(TGColor.coral).padding(10).background(.white).clipShape(Circle()).shadow(radius: 4) }
                     }
-                }.mapControls { MapCompass(); MapScaleView() }.ignoresSafeArea()
-                VStack(spacing: 2) {
-                    Button { region.span = MKCoordinateSpan(latitudeDelta: max(region.span.latitudeDelta * 0.5, 0.001), longitudeDelta: max(region.span.longitudeDelta * 0.5, 0.001)) } label: { Image(systemName: "plus").frame(width: 40, height: 40) }
-                    Divider().frame(width: 24)
-                    Button { region.span = MKCoordinateSpan(latitudeDelta: min(region.span.latitudeDelta * 2, 2), longitudeDelta: min(region.span.longitudeDelta * 2, 2)) } label: { Image(systemName: "minus").frame(width: 40, height: 40) }
-                }.font(.headline).foregroundStyle(TGColor.ink).background(.white).clipShape(RoundedRectangle(cornerRadius: 12)).shadow(radius: 4).padding(.top, 70).padding(.trailing, 16)
+                }.mapControls { MapUserLocationButton(); MapCompass(); MapScaleView() }.ignoresSafeArea()
             }
             .toolbar { ToolbarItem(placement: .topBarLeading) { Button("Fermer") { dismiss() } } }
             .sheet(item: $selected) { risk in RiskDetailView(risk: risk) }

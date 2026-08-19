@@ -39,12 +39,7 @@ struct FullScreenRiskMapView: View {
                     MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) {
                         Button { selected = risk } label: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(TGColor.coral).padding(10).background(.white).clipShape(Circle()).shadow(radius: 4) }
                     }
-                }.mapControls { MapCompass(); MapScaleView() }.ignoresSafeArea()
-                VStack(spacing: 2) {
-                    Button { region.span = MKCoordinateSpan(latitudeDelta: max(region.span.latitudeDelta * 0.5, 0.001), longitudeDelta: max(region.span.longitudeDelta * 0.5, 0.001)) } label: { Image(systemName: "plus").frame(width: 40, height: 40) }
-                    Divider().frame(width: 24)
-                    Button { region.span = MKCoordinateSpan(latitudeDelta: min(region.span.latitudeDelta * 2, 2), longitudeDelta: min(region.span.longitudeDelta * 2, 2)) } label: { Image(systemName: "minus").frame(width: 40, height: 40) }
-                }.font(.headline).foregroundStyle(TGColor.ink).background(.white).clipShape(RoundedRectangle(cornerRadius: 12)).shadow(radius: 4).padding(.top, 70).padding(.trailing, 16)
+                }.mapControls { MapUserLocationButton(); MapCompass(); MapScaleView() }.ignoresSafeArea()
             }
             .toolbar { ToolbarItem(placement: .topBarLeading) { Button("Fermer") { dismiss() } } }
             .sheet(item: $selected) { risk in RiskDetailView(risk: risk) }
