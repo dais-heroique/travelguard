@@ -107,5 +107,5 @@
 
 - [x] Corriger l’erreur SwiftUI onChange sur CLLocationCoordinate2D non Equatable
 
-- [ ] Remplacer les points rouges de Protection active par des indicateurs de risque explicites
-- [ ] Corriger la carte plein écran vide et ajouter zoom, déplacement et contrôles utilisateur
+- [x] Remplacer les points rouges de Protection active par des indicateurs de risque explicites
+- [x] Corriger la carte plein écran vide et ajouter zoom, déplacement et contrôles utilisateur
