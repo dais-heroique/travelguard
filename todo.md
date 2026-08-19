@@ -113,3 +113,6 @@
 - [x] Supprimer les boutons de zoom intrusifs et préserver le zoom MapKit à deux doigts
 - [x] Repositionner le bouton de recentrage dans la carte plein écran
 - [x] Rendre Protection active visible et informative sur iPhone
+
+- [ ] Empêcher le recentrage automatique de la carte pendant le pincement à deux doigts
+- [ ] Vérifier que le zoom tactile reste à la position choisie sans double-clic
