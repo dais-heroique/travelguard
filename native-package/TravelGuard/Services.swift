@@ -54,12 +54,14 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         }
     }
 
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        if coordinate == nil { city = "Position indisponible" }
+    }
 }
 
 @MainActor
 final class NetworkMonitor: ObservableObject {
-    @Published private(set) var isOnline = true
+    @Published private(set) var isOnline = false
     @Published private(set) var isChecking = true
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "travelguard.network")

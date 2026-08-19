@@ -12,7 +12,7 @@ for root in roots:
     assert text.count('{') == text.count('}'), f'{pbx}: unbalanced braces'
     assert text.count('(') == text.count(')'), f'{pbx}: unbalanced parentheses'
     assert 'rootObject = A00000000000000000000001' in text, f'{pbx}: missing root object'
-    assert 'A00000000000000000000002 /* TravelGuard */' in text, f'{pbx}: missing target'
+    assert re.search(r'A00000000000000000000002 /\* TravelGuard(?: target)? \*/', text), f'{pbx}: missing target'
     assert 'A00000000000000000000007 /* TravelGuard.app */ = { isa = PBXFileReference;' in text, f'{pbx}: app reference missing isa'
     for marker in ('PBXBuildFile', 'PBXFileReference', 'PBXGroup', 'PBXNativeTarget', 'PBXProject', 'PBXResourcesBuildPhase', 'PBXSourcesBuildPhase', 'XCBuildConfiguration', 'XCConfigurationList'):
         assert marker in text, f'{pbx}: missing {marker}'

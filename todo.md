@@ -116,3 +116,8 @@
 
 - [x] Empêcher le recentrage automatique de la carte pendant le pincement à deux doigts
 - [x] Vérifier que le zoom tactile reste à la position choisie sans double-clic
+
+- [x] Revoir l’architecture native SwiftUI et la configuration Xcode de bout en bout
+- [x] Rechercher les défauts de concurrence, état, permissions et cycle de vie
+- [x] Rechercher les défauts de carte, OCR, onboarding et navigation utilisateur
+- [x] Valider les références PBX, Info.plist, schéma Release et archive finale

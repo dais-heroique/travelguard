@@ -10,7 +10,7 @@ APP.mkdir(parents=True, exist_ok=True)
 (APP / 'Assets.xcassets' / 'AppIcon.appiconset').mkdir(parents=True, exist_ok=True)
 
 files = {
-'TravelGuardApp.swift': '''import SwiftUI
+'TravelGuardApp.swift': r'''import SwiftUI
 
 @main
 struct TravelGuardApp: App {
@@ -25,7 +25,7 @@ struct TravelGuardApp: App {
     }
 }
 ''',
-'Models.swift': '''import CoreLocation
+'Models.swift': r'''import CoreLocation
 import Foundation
 
 struct RiskPlace: Identifiable, Hashable {
@@ -72,7 +72,7 @@ let sampleSOS = [
     SOSPhrase(language: "Italien", local: "Vorrei il prezzo ufficiale, per favore.", translation: "Je voudrais le prix officiel, s’il vous plaît.")
 ]
 ''',
-'Services.swift': '''import Combine
+'Services.swift': r'''import Combine
 import CoreLocation
 import Foundation
 import Network
@@ -128,12 +128,14 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         }
     }
 
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        if coordinate == nil { city = "Position indisponible" }
+    }
 }
 
 @MainActor
 final class NetworkMonitor: ObservableObject {
-    @Published private(set) var isOnline = true
+    @Published private(set) var isOnline = false
     @Published private(set) var isChecking = true
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "travelguard.network")
@@ -174,7 +176,7 @@ final class TravelGuardStore: ObservableObject {
     }
 }
 ''',
-'Theme.swift': '''import SwiftUI
+'Theme.swift': r'''import SwiftUI
 
 enum TGColor {
     static let ink = Color(red: 0.055, green: 0.12, blue: 0.18)
@@ -192,7 +194,7 @@ extension View {
     }
 }
 ''',
-'RootView.swift': '''import SwiftUI
+'RootView.swift': r'''import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var store: TravelGuardStore
@@ -218,7 +220,7 @@ struct MainTabView: View {
     }
 }
 ''',
-'OnboardingView.swift': '''import SwiftUI
+'OnboardingView.swift': r'''import SwiftUI
 
 struct OnboardingView: View {
     @EnvironmentObject private var store: TravelGuardStore
@@ -272,11 +274,11 @@ struct OnboardingView: View {
     private func finish() { store.completeOnboarding(profile: profile, priorities: priorities) }
 }
 ''',
-'HomeView.swift': '''import SwiftUI
+'HomeView.swift': r'''import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var store: TravelGuardStore
-    var place: String { store.location.country.isEmpty ? store.location.city : "\\(store.location.city) · \\(store.location.country)" }
+    var place: String { store.location.country.isEmpty ? store.location.city : "\(store.location.city) · \(store.location.country)" }
     private var nearbyRisks: [RiskPlace] {
         guard let coordinate = store.location.coordinate else { return sampleRisks }
         return sampleRisks.enumerated().map { index, risk in
@@ -295,8 +297,8 @@ struct HomeView: View {
                         HStack(spacing: 14) { Label(store.location.coordinate == nil ? "Position à activer" : "Position détectée", systemImage: "location.fill"); Label(store.network.isOnline ? "En ligne" : "Hors ligne", systemImage: store.network.isOnline ? "wifi" : "wifi.slash") }.font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.88))
                         Text(store.network.isChecking ? "Vérification de la connexion…" : store.network.isOnline ? "Données locales et alertes prêtes" : "Données locales disponibles sans réseau").font(.subheadline).foregroundStyle(.white.opacity(0.86))
                         Divider().overlay(.white.opacity(0.25))
-                        Text("\\(nearbyRisks.count) risques surveillés près de vous").font(.subheadline.bold()).foregroundStyle(.white).frame(maxWidth: .infinity, alignment: .leading)
-                        ForEach(nearbyRisks.prefix(2)) { risk in HStack(spacing: 9) { Image(systemName: risk.category == "Taxi" ? "car.fill" : risk.category == "Change" ? "banknote.fill" : "fork.knife").font(.caption.bold()).foregroundStyle(.white).frame(width: 26, height: 26).background(TGColor.coral).clipShape(Circle()); VStack(alignment: .leading, spacing: 2) { Text(risk.category.uppercased()).font(.caption2.bold()).foregroundStyle(.white.opacity(0.72)); Text(risk.name).font(.caption.weight(.semibold)).foregroundStyle(.white) }; Spacer(); Text("Score \\(risk.score)").font(.caption.bold()).foregroundStyle(.white.opacity(0.9)) } }
+                        Text("\(nearbyRisks.count) risques surveillés près de vous").font(.subheadline.bold()).foregroundStyle(.white).frame(maxWidth: .infinity, alignment: .leading)
+                        ForEach(nearbyRisks.prefix(2)) { risk in HStack(spacing: 9) { Image(systemName: risk.category == "Taxi" ? "car.fill" : risk.category == "Change" ? "banknote.fill" : "fork.knife").font(.caption.bold()).foregroundStyle(.white).frame(width: 26, height: 26).background(TGColor.coral).clipShape(Circle()); VStack(alignment: .leading, spacing: 2) { Text(risk.category.uppercased()).font(.caption2.bold()).foregroundStyle(.white.opacity(0.72)); Text(risk.name).font(.caption.weight(.semibold)).foregroundStyle(.white) }; Spacer(); Text("Score \(risk.score)").font(.caption.bold()).foregroundStyle(.white.opacity(0.9)) } }
                     }.tgCard().background(TGColor.teal).clipShape(RoundedRectangle(cornerRadius: 22))
                     Text("Besoin d’un contrôle rapide ?").font(.title3.bold()).foregroundStyle(TGColor.ink)
                     HStack(spacing: 10) { QuickLink(title: "Voir la carte", icon: "map.fill", tab: 1); QuickLink(title: "Scanner", icon: "viewfinder", tab: 2); QuickLink(title: "Juste prix", icon: "checkmark.seal.fill", tab: 3) }
@@ -314,7 +316,7 @@ struct QuickLink: View {
     var body: some View { Button { store.selectedTab = tab } label: { VStack(alignment: .leading, spacing: 10) { Image(systemName: icon).font(.title3).foregroundStyle(TGColor.teal); Text(title).font(.subheadline.weight(.bold)).foregroundStyle(TGColor.ink) }.frame(maxWidth: .infinity, minHeight: 82, alignment: .leading).padding(12).background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) } }
 }
 ''',
-'RiskMapView.swift': '''import MapKit
+'RiskMapView.swift': r'''import MapKit
 import SwiftUI
 
 struct RiskMapView: View {
@@ -335,7 +337,7 @@ struct RiskMapView: View {
             VStack(spacing: 0) {
                 HStack { VStack(alignment: .leading) { Text("ZONE DE VIGILANCE").font(.caption.weight(.heavy)).tracking(1.2).foregroundStyle(TGColor.muted); Text("Carte des risques").font(.title.bold()) }; Spacer(); Label(store.location.city, systemImage: "location.fill").font(.caption.bold()).padding(9).background(.white).clipShape(Capsule()) }.padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 12)
                 Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: displayedRisks) { risk in MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) { Button { selected = risk } label: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(TGColor.coral).padding(9).background(.white).clipShape(Circle()).shadow(radius: 3) } } }.frame(height: 260).clipShape(RoundedRectangle(cornerRadius: 22)).padding(.horizontal, 20).overlay(alignment: .bottomTrailing) { HStack(spacing: 8) { if store.location.coordinate == nil { Button { store.location.requestPermission() } label: { Image(systemName: "location.fill").padding(10).background(.white).clipShape(Circle()) } }; Button { showFullScreen = true } label: { Image(systemName: "arrow.up.left.and.arrow.down.right").padding(10).background(.white).clipShape(Circle()) } }.padding(12) }
-                ScrollView { VStack(alignment: .leading, spacing: 10) { Text("Signaux à proximité").font(.title3.bold()).padding(.top, 16); ForEach(displayedRisks) { risk in Button { selected = risk } label: { HStack { Text("\\(risk.score)").font(.headline.bold()).foregroundStyle(TGColor.coral).frame(width: 48, height: 48).background(TGColor.coral.opacity(0.1)).clipShape(Circle()); VStack(alignment: .leading) { Text(risk.name).font(.subheadline.bold()); Text("\\(risk.category) · \\(risk.summary)").font(.caption).foregroundStyle(TGColor.muted).lineLimit(2) }; Spacer(); Image(systemName: "chevron.right").foregroundStyle(TGColor.muted) }.foregroundStyle(TGColor.ink).padding(12).background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) } } }.padding(.horizontal, 20).padding(.bottom, 24) }
+                ScrollView { VStack(alignment: .leading, spacing: 10) { Text("Signaux à proximité").font(.title3.bold()).padding(.top, 16); ForEach(displayedRisks) { risk in Button { selected = risk } label: { HStack { Text("\(risk.score)").font(.headline.bold()).foregroundStyle(TGColor.coral).frame(width: 48, height: 48).background(TGColor.coral.opacity(0.1)).clipShape(Circle()); VStack(alignment: .leading) { Text(risk.name).font(.subheadline.bold()); Text("\(risk.category) · \(risk.summary)").font(.caption).foregroundStyle(TGColor.muted).lineLimit(2) }; Spacer(); Image(systemName: "chevron.right").foregroundStyle(TGColor.muted) }.foregroundStyle(TGColor.ink).padding(12).background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) } } }.padding(.horizontal, 20).padding(.bottom, 24) }
             }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).onAppear { store.location.refresh(); if let coordinate = store.location.coordinate { region.center = coordinate } }
             .sheet(item: $selected) { risk in RiskDetailView(risk: risk) }
             .fullScreenCover(isPresented: $showFullScreen) { FullScreenRiskMapView(region: $region, risks: displayedRisks, selected: $selected) }
@@ -344,7 +346,7 @@ struct RiskMapView: View {
 }
 
 struct FullScreenRiskMapView: View {
-    @Environment(\\.dismiss) private var dismiss
+    @Environment(\.dismiss) private var dismiss
     @Binding var region: MKCoordinateRegion
     let risks: [RiskPlace]
     @Binding var selected: RiskPlace?
@@ -363,9 +365,9 @@ struct FullScreenRiskMapView: View {
     }
 }
 
-struct RiskDetailView: View { let risk: RiskPlace; var body: some View { VStack(alignment: .leading, spacing: 14) { Text(risk.category.uppercased()).font(.caption.bold()).foregroundStyle(TGColor.teal); Text(risk.name).font(.title.bold()); Text("Score de confiance : \\(risk.score)/100").font(.headline); Text(risk.summary).foregroundStyle(TGColor.muted); ForEach(risk.signals, id: \.self) { signal in Text("• \\(signal)") }; Spacer() }.padding(24).presentationDetents([.medium]) } }
+struct RiskDetailView: View { let risk: RiskPlace; var body: some View { VStack(alignment: .leading, spacing: 14) { Text(risk.category.uppercased()).font(.caption.bold()).foregroundStyle(TGColor.teal); Text(risk.name).font(.title.bold()); Text("Score de confiance : \(risk.score)/100").font(.headline); Text(risk.summary).foregroundStyle(TGColor.muted); ForEach(risk.signals, id: \.self) { signal in Text("• \(signal)") }; Spacer() }.padding(24).presentationDetents([.medium]) } }
 ''',
-'ScannerView.swift': '''import PhotosUI
+'ScannerView.swift': r'''import PhotosUI
 import SwiftUI
 import UIKit
 import Vision
@@ -399,23 +401,27 @@ struct ScannerView: View {
             Text("Hors connexion : la capture et l’extraction du texte restent disponibles. L’analyse est réalisée localement sur l’iPhone.").font(.footnote).foregroundStyle(TGColor.muted).padding(.top, 8)
         }.padding(20).padding(.bottom, 30) }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).sheet(isPresented: $showingCamera) { CameraPicker { image in Task { await recognize(image) } } } }
     }
-    private func analyze(_ item: PhotosPickerItem?) async { guard let item, let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return }; await recognize(image) }
+    @MainActor private func analyze(_ item: PhotosPickerItem?) async {
+        guard let item, let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { recognizedLines = ["Image impossible à charger. Choisissez une autre photo et réessayez."]; return }
+        await recognize(image)
+    }
     @MainActor private func recognize(_ image: UIImage) async {
-        guard let cgImage = image.cgImage else { return }
+        guard let cgImage = image.cgImage else { recognizedLines = ["Format d’image non pris en charge."]; isAnalyzing = false; return }
         isAnalyzing = true; recognizedLines = []; suspectLines = []
         let request = VNRecognizeTextRequest { request, _ in
             let observations = request.results as? [VNRecognizedTextObservation] ?? []
             let lines = observations.compactMap { $0.topCandidates(1).first?.string }.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             let suspects = Set(lines.filter { line in let lower = line.lowercased(); return ["service", "frais", "commission", "taxe", "tax", "tip", "extra", "suppl", "tourist", "cash"].contains { lower.contains($0) } })
-            Task { @MainActor in self.recognizedLines = lines.isEmpty ? ["Aucun texte lisible détecté. Rapprochez le document, améliorez la lumière et réessayez."] : lines; self.recognizedText = lines.joined(separator: "\\n"); self.suspectLines = suspects; self.isAnalyzing = false }
+            Task { @MainActor in self.recognizedLines = lines.isEmpty ? ["Aucun texte lisible détecté. Rapprochez le document, améliorez la lumière et réessayez."] : lines; self.recognizedText = lines.joined(separator: "\n"); self.suspectLines = suspects; self.isAnalyzing = false }
         }
-        request.recognitionLevel = .accurate; request.recognitionLanguages = ["fr-FR", "en-US"]; try? VNImageRequestHandler(cgImage: cgImage).perform([request])
+        request.recognitionLevel = .accurate; request.recognitionLanguages = ["fr-FR", "en-US"]
+        do { try VNImageRequestHandler(cgImage: cgImage).perform([request]) } catch { recognizedLines = ["L’analyse a échoué. Vérifiez la lumière et réessayez."]; isAnalyzing = false }
     }
 }
 
 struct CameraPicker: UIViewControllerRepresentable { let onImage: (UIImage) -> Void; func makeCoordinator() -> Coordinator { Coordinator(onImage: onImage) }; func makeUIViewController(context: Context) -> UIImagePickerController { let picker = UIImagePickerController(); picker.sourceType = .camera; picker.delegate = context.coordinator; return picker }; func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}; final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate { let onImage: (UIImage) -> Void; init(onImage: @escaping (UIImage) -> Void) { self.onImage = onImage }; func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) { if let image = info[.originalImage] as? UIImage { onImage(image) }; picker.dismiss(animated: true) }; func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { picker.dismiss(animated: true) } } }
 ''',
-'SafetyView.swift': '''import CoreLocation
+'SafetyView.swift': r'''import CoreLocation
 import SwiftUI
 import UIKit
 
@@ -428,12 +434,12 @@ struct SafetyView: View {
             VStack(alignment: .leading, spacing: 12) { Label("BESOIN D’AIDE ?", systemImage: "shield.fill").font(.caption.weight(.heavy)).foregroundStyle(.white.opacity(0.85)); Text("Gardez vos phrases prêtes.").font(.title2.bold()).foregroundStyle(.white); Text("Affichez une phrase locale sans chercher dans vos réglages.").foregroundStyle(.white.opacity(0.85)); HStack { Button { phraseIndex = (phraseIndex + 1) % sampleSOS.count } label: { Label("Phrase locale", systemImage: "speaker.wave.2.fill") }.buttonStyle(.borderedProminent).tint(.white).foregroundStyle(TGColor.coral); Button { if let url = URL(string: "tel://112") { UIApplication.shared.open(url) } } label: { Label("Secours", systemImage: "phone.fill") }.buttonStyle(.borderedProminent).tint(.white).foregroundStyle(TGColor.coral) } }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(TGColor.coral).clipShape(RoundedRectangle(cornerRadius: 22))
             VStack(alignment: .leading, spacing: 8) { HStack { Text(sampleSOS[phraseIndex].language).font(.caption.bold()).foregroundStyle(TGColor.teal); Spacer(); Text("Hors ligne").font(.caption.bold()).foregroundStyle(TGColor.muted) }; Text(sampleSOS[phraseIndex].local).font(.title3.bold()); Text(sampleSOS[phraseIndex].translation).foregroundStyle(TGColor.muted) }.tgCard()
             Text("Réglages de protection").font(.title3.bold()); Toggle("Alertes de proximité", isOn: $alertsEnabled).tint(TGColor.teal).tgCard().onChange(of: alertsEnabled) { _, value in UserDefaults.standard.set(value, forKey: "alertsEnabled") }; HStack { Image(systemName: store.network.isOnline ? "wifi" : "wifi.slash").foregroundStyle(store.network.isOnline ? .green : TGColor.amber); VStack(alignment: .leading) { Text("Mode hors ligne automatique").font(.subheadline.bold()); Text(store.network.isChecking ? "Vérification de la connexion…" : store.network.isOnline ? "Connexion active · données locales prêtes" : "Aucune connexion · données locales utilisées").font(.caption).foregroundStyle(TGColor.muted) } }.tgCard()
-            Text("Indice du juste prix · \\(store.location.city)").font(.title3.bold()); ForEach(samplePrices) { price in HStack { Text(price.label).bold(); Spacer(); Text(price.value) }.tgCard() }
+            Text("Indice du juste prix · \(store.location.city)").font(.title3.bold()); ForEach(samplePrices) { price in HStack { Text(price.label).bold(); Spacer(); Text(price.value) }.tgCard() }
         }.padding(20).padding(.bottom, 30) }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true) }
     }
 }
 ''',
-'Info.plist': '''<?xml version="1.0" encoding="UTF-8"?>
+'Info.plist': r'''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>

@@ -32,9 +32,12 @@ struct ScannerView: View {
             Text("Hors connexion : la capture et l’extraction du texte restent disponibles. L’analyse est réalisée localement sur l’iPhone.").font(.footnote).foregroundStyle(TGColor.muted).padding(.top, 8)
         }.padding(20).padding(.bottom, 30) }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).sheet(isPresented: $showingCamera) { CameraPicker { image in Task { await recognize(image) } } } }
     }
-    private func analyze(_ item: PhotosPickerItem?) async { guard let item, let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return }; await recognize(image) }
+    @MainActor private func analyze(_ item: PhotosPickerItem?) async {
+        guard let item, let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { recognizedLines = ["Image impossible à charger. Choisissez une autre photo et réessayez."]; return }
+        await recognize(image)
+    }
     @MainActor private func recognize(_ image: UIImage) async {
-        guard let cgImage = image.cgImage else { return }
+        guard let cgImage = image.cgImage else { recognizedLines = ["Format d’image non pris en charge."]; isAnalyzing = false; return }
         isAnalyzing = true; recognizedLines = []; suspectLines = []
         let request = VNRecognizeTextRequest { request, _ in
             let observations = request.results as? [VNRecognizedTextObservation] ?? []
@@ -42,7 +45,8 @@ struct ScannerView: View {
             let suspects = Set(lines.filter { line in let lower = line.lowercased(); return ["service", "frais", "commission", "taxe", "tax", "tip", "extra", "suppl", "tourist", "cash"].contains { lower.contains($0) } })
             Task { @MainActor in self.recognizedLines = lines.isEmpty ? ["Aucun texte lisible détecté. Rapprochez le document, améliorez la lumière et réessayez."] : lines; self.recognizedText = lines.joined(separator: "\n"); self.suspectLines = suspects; self.isAnalyzing = false }
         }
-        request.recognitionLevel = .accurate; request.recognitionLanguages = ["fr-FR", "en-US"]; try? VNImageRequestHandler(cgImage: cgImage).perform([request])
+        request.recognitionLevel = .accurate; request.recognitionLanguages = ["fr-FR", "en-US"]
+        do { try VNImageRequestHandler(cgImage: cgImage).perform([request]) } catch { recognizedLines = ["L’analyse a échoué. Vérifiez la lumière et réessayez."]; isAnalyzing = false }
     }
 }
 
