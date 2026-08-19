@@ -114,5 +114,5 @@
 - [x] Repositionner le bouton de recentrage dans la carte plein écran
 - [x] Rendre Protection active visible et informative sur iPhone
 
-- [ ] Empêcher le recentrage automatique de la carte pendant le pincement à deux doigts
-- [ ] Vérifier que le zoom tactile reste à la position choisie sans double-clic
+- [x] Empêcher le recentrage automatique de la carte pendant le pincement à deux doigts
+- [x] Vérifier que le zoom tactile reste à la position choisie sans double-clic
