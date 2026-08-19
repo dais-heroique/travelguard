@@ -353,11 +353,12 @@ struct FullScreenRiskMapView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .topTrailing) {
+                Color.black.ignoresSafeArea()
                 Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: risks) { risk in
                     MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) {
                         Button { selected = risk } label: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(TGColor.coral).padding(10).background(.white).clipShape(Circle()).shadow(radius: 4) }
                     }
-                }.mapControls { MapUserLocationButton(); MapCompass(); MapScaleView() }.ignoresSafeArea()
+                }.mapControls { MapUserLocationButton(); MapCompass(); MapScaleView() }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center).background(Color.black).ignoresSafeArea()
             }
             .toolbar { ToolbarItem(placement: .topBarLeading) { Button("Fermer") { dismiss() } } }
             .sheet(item: $selected) { risk in RiskDetailView(risk: risk) }

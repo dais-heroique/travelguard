@@ -121,3 +121,6 @@
 - [x] Rechercher les défauts de concurrence, état, permissions et cycle de vie
 - [x] Rechercher les défauts de carte, OCR, onboarding et navigation utilisateur
 - [x] Valider les références PBX, Info.plist, schéma Release et archive finale
+
+- [ ] Stabiliser la taille initiale de MapKit et éviter CAMetalLayer width=0
+- [ ] Vérifier le cycle de présentation plein écran de la carte sur iPhone
