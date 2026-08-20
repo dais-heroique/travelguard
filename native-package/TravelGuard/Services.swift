@@ -3,6 +3,7 @@ import CoreLocation
 import Foundation
 import Network
 import UserNotifications
+import UIKit
 
 @MainActor
 final class LocationService: NSObject, ObservableObject, CLLocationManagerDelegate {
@@ -46,8 +47,13 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
 
     func requestPermission() {
         servicesEnabled = CLLocationManager.locationServicesEnabled()
-        guard servicesEnabled else { errorMessage = "Activez la localisation dans Réglages pour utiliser les risques à proximité."; return }
-        if hasPermission { manager.startUpdatingLocation() } else { manager.requestWhenInUseAuthorization() }
+        guard servicesEnabled else { errorMessage = "Activez la localisation dans Réglages pour utiliser les risques à proximité."; openSettings(); return }
+        if hasPermission { manager.startUpdatingLocation() } else if permissionDenied { errorMessage = "Autorisation refusée. Ouvrez Réglages → TravelGuard → Localisation."; openSettings() } else { manager.requestWhenInUseAuthorization() }
+    }
+
+    private func openSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 
     func refresh() {

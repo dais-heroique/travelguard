@@ -29,3 +29,11 @@ Le scanner normalise l’orientation de l’image, augmente légèrement le cont
 Le service GPS rejette les positions dont la précision dépasse 100 mètres pour le calcul des risques, réduit la fréquence de mise à jour et limite le reverse geocoding aux déplacements d’au moins 2 kilomètres. Les erreurs de géocodage sont désormais visibles. Les alertes de proximité ne demandent plus la permission Notifications au démarrage : l’utilisateur les active explicitement, le choix est persisté, la permission est affichée séparément et les régions utilisent un rayon prudent de 250 mètres.
 
 Les dates des données locales sont fixes plutôt que recalculées à chaque lancement. Un score de confiance dérivé combine la gravité initiale, la fraîcheur, le nombre de signalements et un signal de fiabilité de source ; les données de démonstration restent toutefois clairement étiquetées. Le README racine place `native-package/TravelGuard.xcodeproj` en première position afin d’éviter le lancement involontaire de l’ancien prototype Expo.
+
+## Corrections supplémentaires de Pasted_content_09.txt
+
+Les risques et distances ne sont plus affichés comme fiables lorsque la précision GPS dépasse 100 mètres. L’interface distingue désormais une position imprécise, l’absence de position et l’absence de données connues dans le rayon local. Les distances sont formatées en mètres sous un kilomètre puis en kilomètres au-delà. Le score est présenté comme un **indice indicatif**, et non comme une mesure scientifique indépendante.
+
+Après un refus définitif de la localisation, le bouton ouvre les Réglages iOS avec une indication « Réglages → TravelGuard → Localisation ». La détection OCR conserve les langues de voyage et la lecture structurée ; les faux positifs liés à des mots comme « Tourist information » sont réduits en exigeant un montant sur la ligne suspecte.
+
+Le remplacement de `sampleRisks` et `samplePrices` par une base officielle distante n’est pas effectué automatiquement : aucune source, API, contrat de données ou clé de service n’a été fournie. Les données embarquées restent donc explicitement démonstratives et ne doivent pas être présentées comme des informations officielles ou exhaustives.

@@ -149,3 +149,14 @@
 - [x] Filtrer les positions GPS imprécises et limiter le reverse geocoding
 - [x] Adapter la précision GPS et le suivi pour réduire la consommation énergétique
 - [x] Relire la seconde partie de l’audit et documenter les limites restantes
+
+# Audit Pasted_content_09.txt
+
+- [x] Masquer les distances et risques quand la précision GPS est insuffisante
+- [x] Formater les distances en mètres ou kilomètres lisibles
+- [x] Distinguer absence de données locales et absence de risque
+- [x] Rendre le score de confiance explicitement indicatif et traçable
+- [x] Ouvrir les Réglages iOS si la permission de localisation est définitivement refusée
+- [x] Vérifier et conserver OCR multilingue, préparation d’image et extraction structurée
+- [x] Réduire les faux positifs de détection de frais et documenter l’analyse indicative
+- [x] Relire l’audit complet et associer chaque point à une validation

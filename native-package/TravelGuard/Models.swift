@@ -31,6 +31,12 @@ struct RiskPlace: Identifiable, Hashable {
         let sourceSignal = source.contains("démonstration") ? 5 : 20
         return min(100, max(0, (score / 2) + freshness + reportSignal + sourceSignal))
     }
+
+    func formattedDistance(from coordinate: CLLocationCoordinate2D?) -> String {
+        guard let meters = distance(from: coordinate) else { return "Distance inconnue" }
+        if meters < 1000 { return "\(Int(meters.rounded())) m" }
+        return String(format: "%.1f km", meters / 1000).replacingOccurrences(of: ".0 km", with: " km")
+    }
 }
 
 struct FairPrice: Identifiable, Hashable {

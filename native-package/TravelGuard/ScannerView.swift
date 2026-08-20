@@ -64,7 +64,13 @@ struct ScannerView: View {
         let request = VNRecognizeTextRequest { request, _ in
             let observations = request.results as? [VNRecognizedTextObservation] ?? []
             let lines = observations.compactMap { $0.topCandidates(1).first?.string }.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            let suspects = Set(lines.filter { line in let lower = line.lowercased(); return ["service", "frais", "commission", "taxe", "tax", "tip", "extra", "suppl", "tourist", "cash"].contains { lower.contains($0) } })
+            let suspects = Set(lines.filter { line in
+                let lower = line.lowercased()
+                let feeTerms = ["service", "frais", "commission", "taxe", "tax", "tip", "gratuidad", "propina", "service charge", "surcharge", "supplement"]
+                let exactFeeLabel = feeTerms.contains { lower.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix($0) }
+                let hasAmount = line.range(of: #"\d+[.,]?\d*\s*(€|eur|usd|\\$|£|gbp|chf|%)?"#, options: .regularExpression) != nil
+                return hasAmount && feeTerms.contains { lower.contains($0) } || exactFeeLabel && hasAmount
+            })
             let parsed = parse(lines)
             Task { @MainActor in self.recognizedLines = lines.isEmpty ? ["Aucun texte lisible détecté. Rapprochez le document, améliorez la lumière et réessayez."] : lines; self.suspectLines = suspects; self.summary = parsed; self.isAnalyzing = false }
         }
