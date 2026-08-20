@@ -62,3 +62,16 @@ Le sandbox ne possède pas Xcode ni un iPhone connecté. Sur le Mac, il faut ouv
 | Entrée répétée dans la même région dans les 30 minutes | Une seule notification est envoyée pendant le cooldown | Appareil/Xcode |
 | Position cache restaurée | L’âge (« il y a X min/h ») est visible et le bouton affiche la recherche GPS | Appareil/Xcode |
 | VoiceOver sur contrôles de carte | Recentrage, zoom, risque, sévérité et confiance sont annoncés | Appareil/Xcode |
+
+## Audit 23 — géographie, fraîcheur et robustesse du cache
+
+| Scénario | Résultat attendu | Validation |
+|---|---|---|
+| Carte centrée près de l’antiméridien | Les risques à +179° et -179° restent détectables dans la même zone | Test déterministe + appareil |
+| Carte très dézoomée | Le nombre de marqueurs est plafonné pour préserver la fluidité | Test déterministe |
+| 5 000 risques synchronisés | Le cache conserve au plus la limite définie et refuse un fichier trop volumineux | Test déterministe |
+| Écriture interrompue du cache | Le fichier précédent reste lisible grâce à l’écriture atomique | Test déterministe |
+| Risque avec chaîne vide, NaN, Infinity, date future ou date trop ancienne | Le risque est rejeté avant affichage et monitoring | Test déterministe |
+| Cache vieux de plus de 24 h | L’interface affiche la fraîcheur et ne dit pas « aucun risque » sans réserve | Appareil/Xcode |
+| Réponse GPS non reçue sous 15 secondes | L’indicateur s’arrête et propose de réessayer | Appareil/Xcode |
+| Zoom/déplacement de la carte | La carte et la liste utilisent exactement la même sélection viewport | Appareil/Xcode |

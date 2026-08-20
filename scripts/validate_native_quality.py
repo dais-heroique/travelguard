@@ -43,12 +43,20 @@ assert "waitingForAlwaysAuthorization" not in all_swift
 assert "store.risks" in all_swift
 assert "Hashable, Codable" in all_swift
 assert "RiskPlace.validated" in all_swift
-assert "riskCacheKey" in all_swift
+assert "riskCacheURL" in all_swift
+assert "RiskCacheEnvelope" in all_swift
+assert "Data(contentsOf:" in all_swift
+assert "options: [.atomic]" in all_swift
 assert "beginRiskSync" in all_swift
 assert "notificationCooldown" in all_swift
 assert "cachedAgeLabel" in all_swift
 assert "geocodingErrorMessage" in all_swift
 assert "zone visible" in all_swift
+assert "MKMapRect" in all_swift
+assert "inViewport" in all_swift
+assert "positionSearchTimedOut" in all_swift
+assert "riskDataFreshnessLabel" in all_swift
+assert "riskDataIsStale" in all_swift
 assert "frame(width: 44, height: 44)" in all_swift
 assert "location.horizontalAccuracy > 200" in all_swift
 assert "manager.monitoredRegions.forEach { manager.stopMonitoring" in all_swift

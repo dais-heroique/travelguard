@@ -281,3 +281,16 @@
 - [x] Contextualiser et dédupliquer les notifications
 - [x] Améliorer le statut ville/pays et les erreurs GPS séparées
 - [x] Régénérer, valider et publier la version corrigée
+
+# Corrections Pasted_content_23
+- [x] Remplacer le filtre latitude/longitude par MKMapRect avec gestion de l’antiméridien
+- [x] Limiter la densité des marqueurs à faible zoom et préparer le clustering
+- [x] Remplacer UserDefaults par un cache fichier borné et atomique
+- [x] Valider chaînes, dates, NaN, Infinity et données hors limites
+- [x] Centraliser exactement le filtrage carte et liste
+- [x] Afficher la date et la fraîcheur des données disponibles
+- [x] Ne jamais présenter un cache ancien comme absence de risque
+- [x] Renforcer la version de synchronisation contre les réponses obsolètes
+- [x] Ajouter timeout et remise à zéro de la recherche GPS
+- [x] Ajouter les tests déterministes correspondants
+- [x] Régénérer, valider et publier la version corrigée

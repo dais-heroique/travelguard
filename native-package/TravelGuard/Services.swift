@@ -283,12 +283,23 @@ final class TravelGuardStore: ObservableObject {
     let location = LocationService()
     let network = NetworkMonitor()
     @Published var selectedTab = 0
-    private let riskCacheKey = "travelguard.validatedRisks.v1"
+    private let riskCacheURL: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("travelguard-risks-v1.json")
+    private let maxCachedRisks = 5000
+    private let maxCacheBytes = 2 * 1024 * 1024
+    @Published private(set) var lastRiskSyncAt: Date?
     private var latestRiskSyncGeneration = 0
+    var riskDataFreshnessLabel: String {
+        guard let lastRiskSyncAt else { return "Données non synchronisées" }
+        let minutes = max(0, Int(Date().timeIntervalSince(lastRiskSyncAt) / 60))
+        if minutes < 60 { return "Données mises à jour il y a \(minutes) min" }
+        return "Données mises à jour il y a \(minutes / 60) h"
+    }
+    var riskDataIsStale: Bool { guard let lastRiskSyncAt else { return true }; return Date().timeIntervalSince(lastRiskSyncAt) > 24 * 60 * 60 }
 
     init() {
         onboardingComplete = UserDefaults.standard.bool(forKey: "onboardingComplete")
-        if let data = UserDefaults.standard.data(forKey: riskCacheKey), let cached = try? JSONDecoder().decode([RiskPlace].self, from: data) { risks = RiskPlace.validated(cached) } else { risks = trustedRisks }
+        lastRiskSyncAt = nil
+        if let data = try? Data(contentsOf: riskCacheURL), let envelope = try? JSONDecoder().decode(RiskCacheEnvelope.self, from: data), envelope.schemaVersion == 1 { risks = RiskPlace.validated(Array(envelope.risks.prefix(maxCachedRisks))); lastRiskSyncAt = envelope.savedAt } else { risks = trustedRisks }
         location.updateRisks(risks)
     }
 
@@ -298,9 +309,11 @@ final class TravelGuardStore: ObservableObject {
         if let generation, generation < latestRiskSyncGeneration { return }
         if let generation { latestRiskSyncGeneration = generation }
         let validated = RiskPlace.validated(incoming)
-        risks = validated
-        location.updateRisks(validated)
-        if let data = try? JSONEncoder().encode(validated) { UserDefaults.standard.set(data, forKey: riskCacheKey) }
+        risks = Array(validated.prefix(maxCachedRisks))
+        lastRiskSyncAt = Date()
+        location.updateRisks(risks)
+        let envelope = RiskCacheEnvelope(schemaVersion: 1, savedAt: lastRiskSyncAt ?? Date(), risks: risks)
+        if let data = try? JSONEncoder().encode(envelope), data.count <= maxCacheBytes { try? data.write(to: riskCacheURL, options: [.atomic]) }
     }
 
     func completeOnboarding(profile: String, priorities: Set<String>) {
