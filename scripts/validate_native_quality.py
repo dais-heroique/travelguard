@@ -39,6 +39,12 @@ assert "monitoringActive" in all_swift
 assert "isUsingCachedLocation" in all_swift
 assert "distanceFilter = 100" in all_swift
 assert "startUpdatingLocation" not in all_swift
+assert "waitingForAlwaysAuthorization" not in all_swift
+assert "store.risks" in all_swift
+assert "location.horizontalAccuracy > 200" in all_swift
+assert "manager.monitoredRegions.forEach { manager.stopMonitoring" in all_swift
+assert "settings.authorizationStatus != .authorized" in all_swift
+assert "isUsingCachedLocation { store.location.refresh(); return }" in all_swift
 assert "hasUserInteractedWithMap" in all_swift
 assert "!hasUserInteractedWithMap" in all_swift
 assert "UIApplication.openSettingsURLString" in all_swift

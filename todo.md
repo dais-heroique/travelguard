@@ -255,3 +255,15 @@
 - [x] Comparer chaque point à la version native actuelle
 - [x] Corriger tout écart résiduel réellement présent
 - [x] Régénérer, valider et publier si nécessaire
+
+# Corrections Pasted_content_21
+- [x] Désactiver les alertes après refus de l’autorisation Always
+- [x] Désactiver les alertes si les notifications sont refusées dans Réglages
+- [x] Arrêter les anciennes régions lorsque la précision GPS dépasse 200 m
+- [x] Afficher un bouton adapté à permission absente versus GPS imprécis
+- [x] Ne pas recentrer sur une position issue du cache
+- [x] Exposer une source de risques partagée entre carte et géofencing
+- [x] Utiliser les risques synchronisés pour activer le toggle
+- [x] Mettre monitoringActive à false avant chaque nouvelle synchronisation
+- [x] Supprimer le flag waitingForAlwaysAuthorization devenu inutile
+- [x] Régénérer, valider et publier la version corrigée

@@ -39,3 +39,13 @@ Le sandbox ne possède pas Xcode ni un iPhone connecté. Sur le Mac, il faut ouv
 | App ouverte sans alertes | Aucun tracking continu ne démarre ; seules les demandes ponctuelles nécessaires sont effectuées | Instruments/Xcode |
 | Déplacement inférieur à 500 m | Les régions ne sont pas recalculées à chaque mise à jour GPS ; au-delà de 500 m ou après `updateRisks`, elles le sont | Test déterministe + appareil |
 | `updateRisks([])` | Le toggle et `monitoringActive` passent à désactivé et toutes les régions sont arrêtées | Test déterministe |
+
+## Audit 21 — refus, régions obsolètes et risques synchronisés
+
+| Scénario | Résultat attendu | Validation |
+|---|---|---|
+| Refus de l’autorisation Always | Le toggle est désactivé, `alertsEnabled` est remis à false et les régions sont arrêtées | Appareil/Xcode |
+| Notifications refusées depuis Réglages | L’état d’alerte est désactivé et l’interface indique que les notifications sont refusées | Appareil/Xcode |
+| GPS précis puis précision supérieure à 200 m | Toutes les anciennes régions sont arrêtées et le monitoring devient inactif | Appareil/Xcode |
+| Recentrage avec cache GPS | Une nouvelle demande de position est faite ; la carte ne se recentre pas sur l’ancienne position | Appareil/Xcode |
+| `updateRisks` avec une nouvelle liste | La carte, le toggle et le géofencing utilisent la même liste synchronisée ; `monitoringActive` repasse d’abord à false | Test déterministe + appareil |
