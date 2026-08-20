@@ -12,6 +12,14 @@ struct OCRSummary {
     var service: Double?
     var total: Double?
     var amounts: [Double] = []
+    var calculatedTotal: Double? {
+        guard let subtotal else { return nil }
+        return subtotal + (tax ?? 0) + (service ?? 0)
+    }
+    var difference: Double? {
+        guard let total, let calculatedTotal else { return nil }
+        return total - calculatedTotal
+    }
     var hasData: Bool { !amounts.isEmpty || subtotal != nil || tax != nil || service != nil || total != nil }
 }
 
@@ -38,7 +46,7 @@ struct ScannerView: View {
                         Text(line).font(.body.weight(suspectLines.contains(line) ? .semibold : .regular)).foregroundStyle(suspectLines.contains(line) ? .red : TGColor.ink).padding(.vertical, 3)
                     }
                     if !suspectLines.isEmpty { Text("Vérifiez ces lignes avant de payer : frais, service, commission ou supplément peuvent être ajoutés.").font(.footnote).foregroundStyle(.red) }
-                    if summary.hasData { VStack(alignment: .leading, spacing: 6) { Text("Lecture structurée").font(.subheadline.bold()); if let subtotal = summary.subtotal { Text("Sous-total : \(subtotal, specifier: \"%.2f\") \(summary.currency)") }; if let tax = summary.tax { Text("Taxes : \(tax, specifier: \"%.2f\") \(summary.currency)") }; if let service = summary.service { Text("Service : \(service, specifier: \"%.2f\") \(summary.currency)") }; if let total = summary.total { Text("Total détecté : \(total, specifier: \"%.2f\") \(summary.currency)").fontWeight(.bold) }; Text("Cette lecture est indicative : vérifiez toujours le document original.").font(.caption).foregroundStyle(TGColor.muted) }.padding(.top, 8) }
+                    if summary.hasData { VStack(alignment: .leading, spacing: 6) { Text("Lecture structurée").font(.subheadline.bold()); if let subtotal = summary.subtotal { Text("Sous-total : \(subtotal, specifier: \"%.2f\") \(summary.currency)") }; if let tax = summary.tax { Text("Taxes : \(tax, specifier: \"%.2f\") \(summary.currency)") }; if let service = summary.service { Text("Service : \(service, specifier: \"%.2f\") \(summary.currency)") }; if let total = summary.total { Text("Total détecté : \(total, specifier: \"%.2f\") \(summary.currency)").fontWeight(.bold) }; if let calculated = summary.calculatedTotal, let difference = summary.difference { Text(abs(difference) <= 0.05 ? "Total cohérent avec les lignes détectées : \(calculated, specifier: \"%.2f\") \(summary.currency)" : "Écart à vérifier : \(difference, specifier: \"%.2f\") \(summary.currency)").foregroundStyle(abs(difference) <= 0.05 ? .green : .red).font(.footnote.bold()) }; Text("Aucune référence officielle n’est disponible pour comparer automatiquement cette addition. Vérifiez toujours le document original.").font(.caption).foregroundStyle(TGColor.muted) }.padding(.top, 8) }
                 }.tgCard()
             } else if !isAnalyzing {
                 VStack(alignment: .leading, spacing: 8) { Label("Aucun document analysé", systemImage: "viewfinder").font(.headline); Text("Prenez une photo ou choisissez une image pour lancer la détection du texte.").font(.subheadline).foregroundStyle(TGColor.muted) }.tgCard()

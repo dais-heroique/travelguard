@@ -85,11 +85,14 @@ struct SOSPhrase: Identifiable, Hashable {
 
 private let localReferenceDate = Date(timeIntervalSince1970: 1754006400)
 
-let sampleRisks = [
+let demoRisks = [
     RiskPlace(id: "taxi-1", name: "Taxi sans compteur", category: "Taxi", score: 31, summary: "Refus fréquent du compteur et tarif annoncé après la course.", latitude: 48.8584, longitude: 2.2945, signals: ["Pas de compteur visible", "Prix variable selon le client"], source: "Donnée locale de démonstration", updatedAt: localReferenceDate, reportCount: 12),
     RiskPlace(id: "exchange-1", name: "Change très défavorable", category: "Change", score: 44, summary: "Taux affiché sans frais réels clairement visibles.", latitude: 48.8606, longitude: 2.3376, signals: ["Commission peu lisible", "Écart au taux de référence"], source: "Donnée locale de démonstration", updatedAt: localReferenceDate, reportCount: 8),
     RiskPlace(id: "restaurant-1", name: "Menu touristique", category: "Restaurant", score: 58, summary: "Suppléments signalés sur les terrasses et accompagnements.", latitude: 48.8530, longitude: 2.3499, signals: ["Menu sans prix détaillés", "Service ajouté automatiquement"], source: "Donnée locale de démonstration", updatedAt: localReferenceDate, reportCount: 5)
 ]
+
+// Données de démonstration conservées uniquement pour les tests visuels ; jamais affichées comme locales.
+let trustedRisks: [RiskPlace] = []
 
 let samplePrices = [
     FairPrice(id: "coffee", label: "Café", value: "2,50 €", reference: "Repère local indicatif", city: "Paris", source: "Référence locale de démonstration", updatedAt: localReferenceDate),
@@ -98,8 +101,22 @@ let samplePrices = [
 ]
 
 func prices(for city: String) -> [FairPrice] {
-    samplePrices.filter { $0.city.localizedCaseInsensitiveCompare(city) == .orderedSame }
+    samplePrices.filter { $0.city.localizedCaseInsensitiveCompare(city) == .orderedSame && !$0.source.contains("démonstration") }
 }
+
+struct OfficialSource: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let scope: String
+    let url: String
+}
+
+let officialSources = [
+    OfficialSource(id: "state-scams", title: "U.S. Department of State · Scams", scope: "Conseils officiels sur les arnaques de voyage", url: "https://travel.state.gov/en/international-travel/travel-advisories/scams.html"),
+    OfficialSource(id: "state-advisories", title: "U.S. Department of State · Travel Advisories", scope: "Avertissements par pays", url: "https://travel.state.gov/en/international-travel/travel-advisories.html"),
+    OfficialSource(id: "ftc-travel", title: "FTC · Avoid Scams When You Travel", scope: "Signaux d’arnaque et moyens de paiement", url: "https://consumer.ftc.gov/articles/avoid-scams-when-you-travel"),
+    OfficialSource(id: "data-gov", title: "Data.gov · Travel Advisories", scope: "Catalogue de données publiques", url: "https://catalog.data.gov/dataset/travel-advisories")
+]
 
 let sampleSOS = [
     SOSPhrase(language: "Français", local: "Je veux le prix officiel, s’il vous plaît.", translation: "Phrase de contrôle du tarif"),
@@ -176,7 +193,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     func setProximityAlerts(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: "alertsEnabled")
         if !enabled {
-            sampleRisks.forEach { manager.stopMonitoring(for: CLCircularRegion(center: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), radius: 250, identifier: $0.id)) }
+            trustedRisks.forEach { manager.stopMonitoring(for: CLCircularRegion(center: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), radius: 250, identifier: $0.id)) }
             return
         }
         Task {
@@ -197,7 +214,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     private func monitorRiskRegions() {
-        for risk in sampleRisks {
+        for risk in trustedRisks {
             let region = CLCircularRegion(center: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude), radius: 250, identifier: risk.id)
             region.notifyOnEntry = true
             manager.startMonitoring(for: region)
@@ -414,7 +431,7 @@ struct HomeView: View {
     var place: String { store.location.country.isEmpty ? store.location.city : "\(store.location.city) · \(store.location.country)" }
     private var nearbyRisks: [RiskPlace] {
         guard let coordinate = store.location.coordinate, (store.location.accuracy ?? 999) <= 100 else { return [] }
-        return sampleRisks.filter { ($0.distance(from: coordinate) ?? .greatestFiniteMagnitude) <= 10000 }.sorted { ($0.distance(from: coordinate) ?? .greatestFiniteMagnitude) < ($1.distance(from: coordinate) ?? .greatestFiniteMagnitude) }
+        return trustedRisks.filter { ($0.distance(from: coordinate) ?? .greatestFiniteMagnitude) <= 10000 }.sorted { ($0.distance(from: coordinate) ?? .greatestFiniteMagnitude) < ($1.distance(from: coordinate) ?? .greatestFiniteMagnitude) }
     }
     var body: some View {
         NavigationStack {
@@ -433,7 +450,7 @@ struct HomeView: View {
                     Text("Besoin d’un contrôle rapide ?").font(.title3.bold()).foregroundStyle(TGColor.ink)
                     HStack(spacing: 10) { QuickLink(title: "Voir la carte", icon: "map.fill", tab: 1); QuickLink(title: "Scanner", icon: "viewfinder", tab: 2); QuickLink(title: "Juste prix", icon: "checkmark.seal.fill", tab: 3) }
                     Text("Références de prix · \(store.location.city)").font(.title3.bold()).foregroundStyle(TGColor.ink)
-                    ForEach(samplePrices.filter { store.location.city.localizedCaseInsensitiveCompare($0.city) == .orderedSame || store.location.city == "Localisation requise" }) { price in HStack { Image(systemName: "checkmark.seal.fill").foregroundStyle(.green); VStack(alignment: .leading) { Text(price.label).font(.subheadline.bold()); Text(price.reference).font(.caption).foregroundStyle(TGColor.muted) }; Spacer(); Text(price.value).bold() }.tgCard() }
+                    if prices(for: store.location.city).isEmpty { Text("Aucune référence officielle de prix n’est disponible hors ligne pour \(store.location.city). L’application ne fabrique pas de tarif.").font(.subheadline).foregroundStyle(TGColor.muted).tgCard() } else { ForEach(prices(for: store.location.city)) { price in HStack { Image(systemName: "checkmark.seal.fill").foregroundStyle(.green); VStack(alignment: .leading) { Text(price.label).font(.subheadline.bold()); Text(price.reference).font(.caption).foregroundStyle(TGColor.muted) }; Spacer(); Text(price.value).bold() }.tgCard() } }
                 }.padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 30)
             }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true)
         }
@@ -459,7 +476,7 @@ struct RiskMapView: View {
 
     private var displayedRisks: [RiskPlace] {
         guard let coordinate = store.location.coordinate, (store.location.accuracy ?? 999) <= 100 else { return [] }
-        return sampleRisks.filter { ($0.distance(from: coordinate) ?? .greatestFiniteMagnitude) <= 10000 }.sorted { ($0.distance(from: coordinate) ?? .greatestFiniteMagnitude) < ($1.distance(from: coordinate) ?? .greatestFiniteMagnitude) }
+        return trustedRisks.filter { ($0.distance(from: coordinate) ?? .greatestFiniteMagnitude) <= 10000 }.sorted { ($0.distance(from: coordinate) ?? .greatestFiniteMagnitude) < ($1.distance(from: coordinate) ?? .greatestFiniteMagnitude) }
     }
 
     private func recenter() {
@@ -486,7 +503,7 @@ struct RiskMapView: View {
                 Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: displayedRisks) { risk in MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) { Button { selected = risk } label: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(TGColor.coral).padding(9).background(.white).clipShape(Circle()).shadow(radius: 3) } } }.frame(height: 260).clipShape(RoundedRectangle(cornerRadius: 22)).padding(.horizontal, 20).overlay(alignment: .topLeading) { if !store.location.hasPermission || store.location.coordinate == nil || (store.location.accuracy ?? 999) > 100 { VStack(alignment: .leading, spacing: 7) { Label(store.location.locationStatus, systemImage: "location.slash").font(.caption.bold()); if let error = store.location.errorMessage { Text(error).font(.caption2).lineLimit(2) }; Button("Activer ma position") { store.location.requestPermission() }.font(.caption.bold()).buttonStyle(.borderedProminent).tint(TGColor.teal) }.padding(12).background(.thinMaterial).clipShape(RoundedRectangle(cornerRadius: 14)).padding(10) } }.overlay(alignment: .bottomTrailing) { HStack(spacing: 8) { Button { recenter() } label: { Image(systemName: "location.fill").padding(10).background(.white).clipShape(Circle()) }; Button { showFullScreen = true } label: { Image(systemName: "arrow.up.left.and.arrow.down.right").padding(10).background(.white).clipShape(Circle()) } }.padding(12) }
                 HStack(spacing: 8) { Button { zoom(by: 0.55) } label: { Image(systemName: "plus").frame(width: 34, height: 34) }; Button { zoom(by: 1.8) } label: { Image(systemName: "minus").frame(width: 34, height: 34) } }.font(.headline).foregroundStyle(TGColor.ink).background(.ultraThinMaterial).clipShape(Capsule()).padding(.leading, 30).padding(.top, -52)
                 if store.location.coordinate == nil || (store.location.accuracy ?? 999) > 100 { Text(store.location.permissionDenied ? "Autorisez la localisation dans Réglages pour afficher les risques réellement proches de vous." : "La précision GPS est insuffisante pour afficher des distances fiables. Déplacez-vous à ciel ouvert puis réessayez.").font(.footnote).foregroundStyle(TGColor.muted).padding(.horizontal, 20).padding(.top, 14) }
-                ScrollView { VStack(alignment: .leading, spacing: 10) { Text("Signaux à proximité").font(.title3.bold()).padding(.top, 16); if displayedRisks.isEmpty { Text("Aucune donnée de risque connue dans un rayon de 10 km. Les données embarquées sont une démonstration et ne constituent pas une base locale vérifiée.").font(.subheadline).foregroundStyle(TGColor.muted).tgCard() }; ForEach(displayedRisks) { risk in Button { selected = risk } label: { HStack { VStack(spacing: 0) { Text("\(risk.confidenceScore)").font(.headline.bold()); Text("indicatif").font(.caption2) }.foregroundStyle(TGColor.coral).frame(width: 48, height: 48).background(TGColor.coral.opacity(0.1)).clipShape(Circle()); VStack(alignment: .leading) { Text(risk.name).font(.subheadline.bold()); Text("\(risk.category) · \(risk.formattedDistance(from: store.location.coordinate))").font(.caption.bold()).foregroundStyle(TGColor.teal); Text(risk.summary).font(.caption).foregroundStyle(TGColor.muted).lineLimit(2) }; Spacer(); Image(systemName: "chevron.right").foregroundStyle(TGColor.muted) }.foregroundStyle(TGColor.ink).padding(12).background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) } } }.padding(.horizontal, 20).padding(.bottom, 24) }
+                ScrollView { VStack(alignment: .leading, spacing: 10) { Text("Signaux à proximité").font(.title3.bold()).padding(.top, 16); if displayedRisks.isEmpty { Text("Aucune donnée géolocalisée autorisée n’est disponible dans un rayon de 10 km. Les sources officielles générales restent consultables dans Sécurité.").font(.subheadline).foregroundStyle(TGColor.muted).tgCard() }; ForEach(displayedRisks) { risk in Button { selected = risk } label: { HStack { VStack(spacing: 0) { Text("\(risk.confidenceScore)").font(.headline.bold()); Text("indicatif").font(.caption2) }.foregroundStyle(TGColor.coral).frame(width: 48, height: 48).background(TGColor.coral.opacity(0.1)).clipShape(Circle()); VStack(alignment: .leading) { Text(risk.name).font(.subheadline.bold()); Text("\(risk.category) · \(risk.formattedDistance(from: store.location.coordinate))").font(.caption.bold()).foregroundStyle(TGColor.teal); Text(risk.summary).font(.caption).foregroundStyle(TGColor.muted).lineLimit(2) }; Spacer(); Image(systemName: "chevron.right").foregroundStyle(TGColor.muted) }.foregroundStyle(TGColor.ink).padding(12).background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) } } }.padding(.horizontal, 20).padding(.bottom, 24) }
             }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).onAppear { store.location.refresh(); centerInitiallyIfNeeded() }.onChange(of: store.location.lastUpdated) { _, _ in centerInitiallyIfNeeded() }
             .sheet(item: $selected) { risk in RiskDetailView(risk: risk) }
             .fullScreenCover(isPresented: $showFullScreen) { FullScreenRiskMapView(region: $region, risks: displayedRisks, selected: $selected) }
@@ -527,6 +544,14 @@ struct OCRSummary {
     var service: Double?
     var total: Double?
     var amounts: [Double] = []
+    var calculatedTotal: Double? {
+        guard let subtotal else { return nil }
+        return subtotal + (tax ?? 0) + (service ?? 0)
+    }
+    var difference: Double? {
+        guard let total, let calculatedTotal else { return nil }
+        return total - calculatedTotal
+    }
     var hasData: Bool { !amounts.isEmpty || subtotal != nil || tax != nil || service != nil || total != nil }
 }
 
@@ -553,7 +578,7 @@ struct ScannerView: View {
                         Text(line).font(.body.weight(suspectLines.contains(line) ? .semibold : .regular)).foregroundStyle(suspectLines.contains(line) ? .red : TGColor.ink).padding(.vertical, 3)
                     }
                     if !suspectLines.isEmpty { Text("Vérifiez ces lignes avant de payer : frais, service, commission ou supplément peuvent être ajoutés.").font(.footnote).foregroundStyle(.red) }
-                    if summary.hasData { VStack(alignment: .leading, spacing: 6) { Text("Lecture structurée").font(.subheadline.bold()); if let subtotal = summary.subtotal { Text("Sous-total : \(subtotal, specifier: \"%.2f\") \(summary.currency)") }; if let tax = summary.tax { Text("Taxes : \(tax, specifier: \"%.2f\") \(summary.currency)") }; if let service = summary.service { Text("Service : \(service, specifier: \"%.2f\") \(summary.currency)") }; if let total = summary.total { Text("Total détecté : \(total, specifier: \"%.2f\") \(summary.currency)").fontWeight(.bold) }; Text("Cette lecture est indicative : vérifiez toujours le document original.").font(.caption).foregroundStyle(TGColor.muted) }.padding(.top, 8) }
+                    if summary.hasData { VStack(alignment: .leading, spacing: 6) { Text("Lecture structurée").font(.subheadline.bold()); if let subtotal = summary.subtotal { Text("Sous-total : \(subtotal, specifier: \"%.2f\") \(summary.currency)") }; if let tax = summary.tax { Text("Taxes : \(tax, specifier: \"%.2f\") \(summary.currency)") }; if let service = summary.service { Text("Service : \(service, specifier: \"%.2f\") \(summary.currency)") }; if let total = summary.total { Text("Total détecté : \(total, specifier: \"%.2f\") \(summary.currency)").fontWeight(.bold) }; if let calculated = summary.calculatedTotal, let difference = summary.difference { Text(abs(difference) <= 0.05 ? "Total cohérent avec les lignes détectées : \(calculated, specifier: \"%.2f\") \(summary.currency)" : "Écart à vérifier : \(difference, specifier: \"%.2f\") \(summary.currency)").foregroundStyle(abs(difference) <= 0.05 ? .green : .red).font(.footnote.bold()) }; Text("Aucune référence officielle n’est disponible pour comparer automatiquement cette addition. Vérifiez toujours le document original.").font(.caption).foregroundStyle(TGColor.muted) }.padding(.top, 8) }
                 }.tgCard()
             } else if !isAnalyzing {
                 VStack(alignment: .leading, spacing: 8) { Label("Aucun document analysé", systemImage: "viewfinder").font(.headline); Text("Prenez une photo ou choisissez une image pour lancer la détection du texte.").font(.subheadline).foregroundStyle(TGColor.muted) }.tgCard()
@@ -648,8 +673,8 @@ struct SafetyView: View {
         NavigationStack { ScrollView { VStack(alignment: .leading, spacing: 16) { HStack { VStack(alignment: .leading) { Text("PROTECTION ET RÉFÉRENCES").font(.caption.weight(.heavy)).tracking(1.2).foregroundStyle(TGColor.muted); Text("Sécurité").font(.largeTitle.bold()) }; Spacer(); Label(store.location.hasPermission ? "Position protégée" : "Localisation requise", systemImage: store.location.hasPermission ? "checkmark.shield.fill" : "location.slash").font(.caption.bold()).foregroundStyle(store.location.hasPermission ? .green : TGColor.amber) }
             VStack(alignment: .leading, spacing: 12) { Label("BESOIN D’AIDE ?", systemImage: "shield.fill").font(.caption.weight(.heavy)).foregroundStyle(.white.opacity(0.85)); Text("Gardez vos phrases prêtes.").font(.title2.bold()).foregroundStyle(.white); Text("Affichez une phrase locale sans chercher dans vos réglages.").foregroundStyle(.white.opacity(0.85)); HStack { Button { phraseIndex = (phraseIndex + 1) % sampleSOS.count } label: { Label("Phrase locale", systemImage: "speaker.wave.2.fill") }.buttonStyle(.borderedProminent).tint(.white).foregroundStyle(TGColor.coral); Button { if let url = URL(string: "tel://\(emergencyNumber)") { UIApplication.shared.open(url) } } label: { Label("Secours \(emergencyNumber)", systemImage: "phone.fill") }.buttonStyle(.borderedProminent).tint(.white).foregroundStyle(TGColor.coral) } }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(TGColor.coral).clipShape(RoundedRectangle(cornerRadius: 22))
             VStack(alignment: .leading, spacing: 8) { HStack { Text(sampleSOS[phraseIndex].language).font(.caption.bold()).foregroundStyle(TGColor.teal); Spacer(); Text(store.network.isOnline ? "En ligne" : "Hors ligne").font(.caption.bold()).foregroundStyle(TGColor.muted) }; Text(sampleSOS[phraseIndex].local).font(.title3.bold()); Text(sampleSOS[phraseIndex].translation).foregroundStyle(TGColor.muted) }.tgCard()
-            Text("Réglages de protection").font(.title3.bold()); Toggle("Alertes de proximité", isOn: $alertsEnabled).tint(TGColor.teal).tgCard().onChange(of: alertsEnabled) { _, value in store.location.setProximityAlerts(value) }; Text(alertsEnabled ? (store.location.notificationPermission == .authorized ? "Alertes activées · régions iOS surveillées" : "Activation en attente de l’autorisation Notifications") : "Alertes désactivées").font(.caption.bold()).foregroundStyle(alertsEnabled ? TGColor.teal : TGColor.muted); Text("Les alertes utilisent la surveillance de régions iOS et nécessitent les autorisations de localisation et de notifications. Les données incluses sont locales et de démonstration.").font(.caption).foregroundStyle(TGColor.muted); HStack { Image(systemName: store.network.isOnline ? "wifi" : "wifi.slash").foregroundStyle(store.network.isOnline ? .green : TGColor.amber); VStack(alignment: .leading) { Text("Mode hors ligne automatique").font(.subheadline.bold()); Text(store.network.isChecking ? "Vérification de la connexion…" : store.network.isOnline ? "Connexion active · données locales prêtes" : "Aucune connexion · données locales utilisées").font(.caption).foregroundStyle(TGColor.muted) } }.tgCard()
-            Text("Références de prix · \(store.location.city)").font(.title3.bold()); ForEach(samplePrices.filter { store.location.city.localizedCaseInsensitiveCompare($0.city) == .orderedSame || store.location.city == "Localisation requise" }) { price in HStack { Text(price.label).bold(); Spacer(); Text(price.value) }.tgCard() }
+            Text("Réglages de protection").font(.title3.bold()); Toggle("Alertes de proximité", isOn: $alertsEnabled).tint(TGColor.teal).tgCard().onChange(of: alertsEnabled) { _, value in store.location.setProximityAlerts(value) }; Text(alertsEnabled ? (store.location.notificationPermission == .authorized ? "Alertes activées · régions iOS surveillées" : "Activation en attente de l’autorisation Notifications") : "Alertes désactivées").font(.caption.bold()).foregroundStyle(alertsEnabled ? TGColor.teal : TGColor.muted); Text("Les alertes utilisent la surveillance de régions iOS et nécessitent les autorisations de localisation et de notifications. Aucune alerte locale n’est activée sans une source géolocalisée autorisée. Les sources officielles générales sont consultables ci-dessous.").font(.caption).foregroundStyle(TGColor.muted); HStack { Image(systemName: store.network.isOnline ? "wifi" : "wifi.slash").foregroundStyle(store.network.isOnline ? .green : TGColor.amber); VStack(alignment: .leading) { Text("Mode hors ligne automatique").font(.subheadline.bold()); Text(store.network.isChecking ? "Vérification de la connexion…" : store.network.isOnline ? "Connexion active · données locales prêtes" : "Aucune connexion · données locales utilisées").font(.caption).foregroundStyle(TGColor.muted) } }.tgCard()
+            Text("Références de prix · \(store.location.city)").font(.title3.bold()); if prices(for: store.location.city).isEmpty { Text("Aucune référence officielle disponible pour cette ville. TravelGuard ne présente pas les données de démonstration comme des tarifs réels.").font(.subheadline).foregroundStyle(TGColor.muted).tgCard() } else { ForEach(prices(for: store.location.city)) { price in HStack { Text(price.label).bold(); Spacer(); Text(price.value) }.tgCard() } }; Text("Sources officielles").font(.title3.bold()); ForEach(officialSources) { source in Button { if let url = URL(string: source.url) { UIApplication.shared.open(url) } } label: { HStack { Image(systemName: "checkmark.seal").foregroundStyle(TGColor.teal); VStack(alignment: .leading) { Text(source.title).font(.subheadline.bold()); Text(source.scope).font(.caption).foregroundStyle(TGColor.muted) }; Spacer(); Image(systemName: "arrow.up.right").foregroundStyle(TGColor.muted) }.tgCard() } }
         }.padding(20).padding(.bottom, 30) }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).onAppear { if alertsEnabled { store.location.restoreProximityAlertsIfAuthorized() } } }
     }
 }

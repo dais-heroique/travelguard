@@ -6,7 +6,7 @@ struct HomeView: View {
     var place: String { store.location.country.isEmpty ? store.location.city : "\(store.location.city) · \(store.location.country)" }
     private var nearbyRisks: [RiskPlace] {
         guard let coordinate = store.location.coordinate, (store.location.accuracy ?? 999) <= 100 else { return [] }
-        return sampleRisks.filter { ($0.distance(from: coordinate) ?? .greatestFiniteMagnitude) <= 10000 }.sorted { ($0.distance(from: coordinate) ?? .greatestFiniteMagnitude) < ($1.distance(from: coordinate) ?? .greatestFiniteMagnitude) }
+        return trustedRisks.filter { ($0.distance(from: coordinate) ?? .greatestFiniteMagnitude) <= 10000 }.sorted { ($0.distance(from: coordinate) ?? .greatestFiniteMagnitude) < ($1.distance(from: coordinate) ?? .greatestFiniteMagnitude) }
     }
     var body: some View {
         NavigationStack {
@@ -25,7 +25,7 @@ struct HomeView: View {
                     Text("Besoin d’un contrôle rapide ?").font(.title3.bold()).foregroundStyle(TGColor.ink)
                     HStack(spacing: 10) { QuickLink(title: "Voir la carte", icon: "map.fill", tab: 1); QuickLink(title: "Scanner", icon: "viewfinder", tab: 2); QuickLink(title: "Juste prix", icon: "checkmark.seal.fill", tab: 3) }
                     Text("Références de prix · \(store.location.city)").font(.title3.bold()).foregroundStyle(TGColor.ink)
-                    ForEach(samplePrices.filter { store.location.city.localizedCaseInsensitiveCompare($0.city) == .orderedSame || store.location.city == "Localisation requise" }) { price in HStack { Image(systemName: "checkmark.seal.fill").foregroundStyle(.green); VStack(alignment: .leading) { Text(price.label).font(.subheadline.bold()); Text(price.reference).font(.caption).foregroundStyle(TGColor.muted) }; Spacer(); Text(price.value).bold() }.tgCard() }
+                    if prices(for: store.location.city).isEmpty { Text("Aucune référence officielle de prix n’est disponible hors ligne pour \(store.location.city). L’application ne fabrique pas de tarif.").font(.subheadline).foregroundStyle(TGColor.muted).tgCard() } else { ForEach(prices(for: store.location.city)) { price in HStack { Image(systemName: "checkmark.seal.fill").foregroundStyle(.green); VStack(alignment: .leading) { Text(price.label).font(.subheadline.bold()); Text(price.reference).font(.caption).foregroundStyle(TGColor.muted) }; Spacer(); Text(price.value).bold() }.tgCard() } }
                 }.padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 30)
             }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true)
         }

@@ -66,7 +66,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     func setProximityAlerts(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: "alertsEnabled")
         if !enabled {
-            sampleRisks.forEach { manager.stopMonitoring(for: CLCircularRegion(center: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), radius: 250, identifier: $0.id)) }
+            trustedRisks.forEach { manager.stopMonitoring(for: CLCircularRegion(center: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), radius: 250, identifier: $0.id)) }
             return
         }
         Task {
@@ -87,7 +87,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     private func monitorRiskRegions() {
-        for risk in sampleRisks {
+        for risk in trustedRisks {
             let region = CLCircularRegion(center: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude), radius: 250, identifier: risk.id)
             region.notifyOnEntry = true
             manager.startMonitoring(for: region)

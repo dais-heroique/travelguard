@@ -160,3 +160,10 @@
 - [x] Vérifier et conserver OCR multilingue, préparation d’image et extraction structurée
 - [x] Réduire les faux positifs de détection de frais et documenter l’analyse indicative
 - [x] Relire l’audit complet et associer chaque point à une validation
+
+# Finalisation complète demandée
+- [x] Identifier des sources officielles réellement utilisables pour risques et prix
+- [x] Remplacer les données de démonstration par des données sourcées ou afficher un état indisponible honnête
+- [x] Renforcer et tester l’OCR structuré sur menus et additions multilingues
+- [x] Ajouter les validations déterministes des permissions, GPS, réseau, carte et scanner
+- [ ] Valider le paquet natif final sur macOS/Xcode et iPhone lorsque possible
