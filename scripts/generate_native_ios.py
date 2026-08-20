@@ -101,7 +101,9 @@ struct RiskPlace: Identifiable, Hashable, Codable {
     static func validated(_ risks: [RiskPlace]) -> [RiskPlace] {
         var ids = Set<String>(); var result: [RiskPlace] = []
         for risk in risks {
-            let valid = !risk.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && ids.insert(risk.id).inserted && !risk.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !risk.category.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !risk.summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !risk.source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && risk.latitude.isFinite && risk.longitude.isFinite && (-90...90).contains(risk.latitude) && (-180...180).contains(risk.longitude) && (0...100).contains(risk.score) && risk.reportCount >= 0 && risk.updatedAt <= Date().addingTimeInterval(300) && risk.updatedAt >= Date().addingTimeInterval(-365 * 24 * 60 * 60) && risk.revokedAt == nil && risk.alertRadius.isFinite && (1...5000).contains(risk.alertRadius) && Set(risk.evidence.map(\.id)).count == risk.evidence.count && (risk.locationPrecision == .point || risk.sourceRecord != nil) && (risk.sourceRecord == nil || risk.sourceRecord?.type == risk.sourceType)
+            let sourceURLIsValid: Bool = { guard let record = risk.sourceRecord, let url = URL(string: record.url), url.scheme?.lowercased() == "https", let host = url.host, !host.isEmpty, !host.hasPrefix("localhost"), !host.hasPrefix("127."), !host.hasPrefix("10."), !host.hasPrefix("192.168."), !host.hasPrefix("169.254."), host != "::1", !host.hasPrefix("fc"), !host.hasPrefix("fd") else { return risk.sourceRecord == nil }; return true }()
+            let evidenceIsRelated = risk.evidence.allSatisfy { evidence in risk.sourceRecord?.id == evidence.sourceId }
+            let valid = !risk.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && ids.insert(risk.id).inserted && !risk.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !risk.category.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !risk.summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !risk.source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && risk.latitude.isFinite && risk.longitude.isFinite && (-90...90).contains(risk.latitude) && (-180...180).contains(risk.longitude) && (0...100).contains(risk.score) && risk.reportCount >= 0 && risk.updatedAt <= Date().addingTimeInterval(300) && risk.updatedAt >= Date().addingTimeInterval(-365 * 24 * 60 * 60) && risk.revokedAt == nil && risk.alertRadius.isFinite && (1...5000).contains(risk.alertRadius) && Set(risk.evidence.map(\.id)).count == risk.evidence.count && Set(risk.evidence.map(\.sourceId)).count == risk.evidence.count && (risk.locationPrecision == .point || risk.sourceRecord != nil) && (risk.sourceRecord == nil || (risk.sourceRecord?.type == risk.sourceType && risk.sourceRecord?.name == risk.source && evidenceIsRelated)) && sourceURLIsValid
             if valid { result.append(risk) }
         }
         return result
@@ -124,8 +126,9 @@ struct RiskPlace: Identifiable, Hashable, Codable {
     let revokedAt: Date?
     let sourceRecord: VerifiedSource?
     let locationPrecision: LocationPrecision
+    let serverReliabilityIndex: Int?
 
-    init(id: String, name: String, category: String, score: Int, summary: String, latitude: Double, longitude: Double, signals: [String] = [], source: String, updatedAt: Date, reportCount: Int = 0, sourceType: SourceTrust = .unknown, evidence: [RiskEvidence] = [], alertRadius: CLLocationDistance = 250, revokedAt: Date? = nil, sourceRecord: VerifiedSource? = nil, locationPrecision: LocationPrecision = .point) { self.id = id; self.name = name; self.category = category; self.score = score; self.summary = summary; self.latitude = latitude; self.longitude = longitude; self.signals = signals; self.source = source; self.updatedAt = updatedAt; self.reportCount = reportCount; self.sourceType = sourceType; self.evidence = evidence; self.alertRadius = alertRadius; self.revokedAt = revokedAt; self.sourceRecord = sourceRecord; self.locationPrecision = locationPrecision }
+    init(id: String, name: String, category: String, score: Int, summary: String, latitude: Double, longitude: Double, signals: [String] = [], source: String, updatedAt: Date, reportCount: Int = 0, sourceType: SourceTrust = .unknown, evidence: [RiskEvidence] = [], alertRadius: CLLocationDistance = 250, revokedAt: Date? = nil, sourceRecord: VerifiedSource? = nil, locationPrecision: LocationPrecision = .point, serverReliabilityIndex: Int? = nil) { self.id = id; self.name = name; self.category = category; self.score = score; self.summary = summary; self.latitude = latitude; self.longitude = longitude; self.source = source; self.updatedAt = updatedAt; self.reportCount = reportCount; self.sourceType = sourceType; self.evidence = evidence; self.alertRadius = alertRadius; self.revokedAt = revokedAt; self.sourceRecord = sourceRecord; self.locationPrecision = locationPrecision; self.serverReliabilityIndex = serverReliabilityIndex.map { min(100, max(0, $0)) } }
 
     enum CodingKeys: String, CodingKey { case id, name, category, score, summary, latitude, longitude, signals, source, updatedAt, reportCount, sourceType, evidence, alertRadius, revokedAt, sourceRecord, locationPrecision, reliabilityIndex, confidenceScore }
     init(from decoder: Decoder) throws {
@@ -133,7 +136,7 @@ struct RiskPlace: Identifiable, Hashable, Codable {
         id = try c.decode(String.self, forKey: .id); name = try c.decode(String.self, forKey: .name); category = try c.decode(String.self, forKey: .category)
         score = try c.decode(Int.self, forKey: .score); summary = try c.decode(String.self, forKey: .summary); latitude = try c.decode(Double.self, forKey: .latitude); longitude = try c.decode(Double.self, forKey: .longitude)
         signals = try c.decodeIfPresent([String].self, forKey: .signals) ?? []; source = try c.decode(String.self, forKey: .source); updatedAt = try c.decode(Date.self, forKey: .updatedAt); reportCount = try c.decodeIfPresent(Int.self, forKey: .reportCount) ?? 0
-        sourceType = try c.decodeIfPresent(SourceTrust.self, forKey: .sourceType) ?? .unknown; evidence = try c.decodeIfPresent([RiskEvidence].self, forKey: .evidence) ?? []; alertRadius = try c.decodeIfPresent(CLLocationDistance.self, forKey: .alertRadius) ?? 250; revokedAt = try c.decodeIfPresent(Date.self, forKey: .revokedAt); sourceRecord = try c.decodeIfPresent(VerifiedSource.self, forKey: .sourceRecord); locationPrecision = try c.decodeIfPresent(LocationPrecision.self, forKey: .locationPrecision) ?? .point; let _ = try c.decodeIfPresent(Int.self, forKey: .reliabilityIndex) ?? c.decodeIfPresent(Int.self, forKey: .confidenceScore)
+        sourceType = try c.decodeIfPresent(SourceTrust.self, forKey: .sourceType) ?? .unknown; evidence = try c.decodeIfPresent([RiskEvidence].self, forKey: .evidence) ?? []; alertRadius = try c.decodeIfPresent(CLLocationDistance.self, forKey: .alertRadius) ?? 250; revokedAt = try c.decodeIfPresent(Date.self, forKey: .revokedAt); sourceRecord = try c.decodeIfPresent(VerifiedSource.self, forKey: .sourceRecord); locationPrecision = try c.decodeIfPresent(LocationPrecision.self, forKey: .locationPrecision) ?? .point; serverReliabilityIndex = try c.decodeIfPresent(Int.self, forKey: .reliabilityIndex) ?? c.decodeIfPresent(Int.self, forKey: .confidenceScore)
     }
 
     func distance(from coordinate: CLLocationCoordinate2D?) -> CLLocationDistance? {
@@ -157,9 +160,10 @@ struct RiskPlace: Identifiable, Hashable, Codable {
         let uniqueEvidence = Set(evidence.map(\.id)).count
         let verifiedEvidence = evidence.filter(\.verified).count
         let evidenceSignal = min(20, uniqueEvidence * 3 + verifiedEvidence * 2)
-        let deduplicatedReports = min(8, max(0, Set(evidence.map(\.source)).count))
+        let deduplicatedReports = min(8, max(0, Set(evidence.map(\.sourceId)).count))
         let reportSignal = min(10, deduplicatedReports)
-        return min(100, max(0, freshness + sourceSignal + evidenceSignal + reportSignal))
+        let localScore = min(100, max(0, freshness + sourceSignal + evidenceSignal + reportSignal))
+        return serverReliabilityIndex.map { min(100, max(0, $0)) } ?? localScore
     }
     var confidenceScore: Int { reliabilityIndex }
     var reliabilityLabel: String { "Indice de fiabilité : \(reliabilityIndex)/100" }
@@ -175,9 +179,12 @@ struct RiskCacheEnvelope: Codable {
     let schemaVersion: Int
     let savedAt: Date
     let risks: [RiskPlace]
+    let bbox: RiskBoundingBox?
+    let etag: String?
+    let expiresAt: Date?
 }
 
-struct RiskFeedEnvelope: Codable { let schemaVersion: Int; let fetchedAt: Date; let updatedAt: Date?; let risks: [RiskPlace] }
+struct RiskFeedEnvelope: Codable { let schemaVersion: Int; let fetchedAt: Date; let updatedAt: Date?; let page: Int?; let pageSize: Int?; let hasMore: Bool?; let risks: [RiskPlace] }
 
 struct FairPrice: Identifiable, Hashable {
     let id: String
@@ -213,7 +220,10 @@ struct OfficialSource: Identifiable, Hashable {
     let url: String
 }
 
-struct RiskBoundingBox: Codable, Hashable { let west: Double; let south: Double; let east: Double; let north: Double; let page: Int }
+struct RiskBoundingBox: Codable, Hashable { let west: Double; let south: Double; let east: Double; let north: Double; let page: Int; let pageSize: Int = 100
+    var isValid: Bool { west.isFinite && east.isFinite && south.isFinite && north.isFinite && (-180...180).contains(west) && (-180...180).contains(east) && (-90...90).contains(south) && (-90...90).contains(north) && page >= 1 && (1...500).contains(pageSize) }
+    var longitudeSpan: Double { west <= east ? east - west : (180 - west) + (east + 180) }
+}
 
 protocol RiskRepository {
     func fetchRisks() async throws -> [RiskPlace]
@@ -234,10 +244,10 @@ struct RemoteRiskRepository: RiskRepository {
     let allowedHost: String?
     private let maxResponseBytes = 8 * 1024 * 1024
     private let maxRisks = 5000
-    func fetchRisks() async throws -> [RiskPlace] { try await fetchRisks(in: RiskBoundingBox(west: -180, south: -90, east: 180, north: 90, page: 1)) }
+    func fetchRisks() async throws -> [RiskPlace] { throw RiskRepositoryError.unavailable }
     func fetchRisks(in bbox: RiskBoundingBox) async throws -> [RiskPlace] {
-        guard let endpoint, endpoint.scheme?.lowercased() == "https", let host = endpoint.host, let allowedHost, !allowedHost.isEmpty, host == allowedHost, !host.hasPrefix("localhost"), !host.hasPrefix("127."), !host.hasPrefix("10."), !host.hasPrefix("192.168."), !host.hasPrefix("169.254."), host != "::1", !host.hasPrefix("fc"), !host.hasPrefix("fd") else { throw RiskRepositoryError.unavailable }
-        var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)!; components.queryItems = [URLQueryItem(name: "west", value: String(bbox.west)), URLQueryItem(name: "south", value: String(bbox.south)), URLQueryItem(name: "east", value: String(bbox.east)), URLQueryItem(name: "north", value: String(bbox.north)), URLQueryItem(name: "page", value: String(bbox.page))]
+        guard bbox.isValid, bbox.longitudeSpan <= 180, let endpoint, endpoint.scheme?.lowercased() == "https", let host = endpoint.host, let allowedHost, !allowedHost.isEmpty, host == allowedHost, !host.hasPrefix("localhost"), !host.hasPrefix("127."), !host.hasPrefix("10."), !host.hasPrefix("192.168."), !host.hasPrefix("169.254."), host != "::1", !host.hasPrefix("fc"), !host.hasPrefix("fd") else { throw RiskRepositoryError.unavailable }
+        var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)!; components.queryItems = [URLQueryItem(name: "west", value: String(bbox.west)), URLQueryItem(name: "south", value: String(bbox.south)), URLQueryItem(name: "east", value: String(bbox.east)), URLQueryItem(name: "north", value: String(bbox.north)), URLQueryItem(name: "page", value: String(bbox.page)), URLQueryItem(name: "pageSize", value: String(bbox.pageSize))]
         guard let regionalEndpoint = components.url else { throw RiskRepositoryError.unavailable }
         var lastError: Error?
         for delay in [0.0, 1.0, 3.0, 10.0] {
@@ -256,7 +266,7 @@ struct RemoteRiskRepository: RiskRepository {
                 if let etag = http.value(forHTTPHeaderField: "ETag") { UserDefaults.standard.set(etag, forKey: "travelguard.feed.etag") }
                 let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
                 let feed = try decoder.decode(RiskFeedEnvelope.self, from: data)
-                guard feed.schemaVersion == 1, feed.fetchedAt <= Date().addingTimeInterval(300), feed.risks.count <= maxRisks, feed.risks.allSatisfy({ risk in feed.updatedAt.map { risk.updatedAt >= $0.addingTimeInterval(-300) } ?? true }) else { throw RiskRepositoryError.invalidResponse }
+                guard feed.schemaVersion == 1, (feed.page ?? 1) >= 1, (feed.pageSize ?? feed.risks.count) <= maxRisks, feed.fetchedAt <= Date().addingTimeInterval(300), feed.risks.count <= maxRisks, feed.risks.allSatisfy({ risk in feed.updatedAt.map { risk.updatedAt >= $0.addingTimeInterval(-300) } ?? true }) else { throw RiskRepositoryError.invalidResponse }
                 let validated = RiskPlace.validated(feed.risks)
                 guard validated.count == feed.risks.count else { throw RiskRepositoryError.invalidResponse }
                 return validated
@@ -372,6 +382,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
             proximityAlertsEnabled = false
             UserDefaults.standard.set(false, forKey: "alertsEnabled")
             manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }
+            manager.stopMonitoringSignificantLocationChanges()
             return
         }
         proximityAlertsEnabled = true
@@ -390,7 +401,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
                     self.errorMessage = "Les notifications sont nécessaires pour les alertes de proximité."
                     return
                 }
-                if self.authorization == .authorizedAlways { self.manager.requestLocation() }
+                if self.authorization == .authorizedAlways { self.manager.startMonitoringSignificantLocationChanges(); self.manager.requestLocation() }
                 else { self.errorMessage = "Autorisez la localisation Toujours pour installer les alertes autour de vous." }
             }
         }
@@ -403,8 +414,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
                 self.notificationPermission = settings.authorizationStatus
                 self.manager.monitoredRegions.forEach { self.manager.stopMonitoring(for: $0) }
                 self.monitoringActive = false
-                if settings.authorizationStatus == .authorized && self.authorization == .authorizedAlways { self.manager.requestLocation() }
-                else if settings.authorizationStatus != .authorized { self.proximityAlertsEnabled = false; self.monitoringActive = false; UserDefaults.standard.set(false, forKey: "alertsEnabled") }
+                if settings.authorizationStatus == .authorized && self.authorization == .authorizedAlways { self.manager.startMonitoringSignificantLocationChanges(); self.manager.requestLocation() }
+                else if settings.authorizationStatus != .authorized { self.proximityAlertsEnabled = false; self.monitoringActive = false; self.manager.stopMonitoringSignificantLocationChanges(); UserDefaults.standard.set(false, forKey: "alertsEnabled") }
             }
         }
     }
@@ -416,24 +427,27 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
 
     /// Called by a future API/offline sync after replacing the authoritative risk set.
     func updateRisks(_ risks: [RiskPlace]) {
-        monitoredRisks = risks
+        monitoredRisks = RiskPlace.validated(risks)
         monitoringActive = false
-        if risks.isEmpty { proximityAlertsEnabled = false; UserDefaults.standard.set(false, forKey: "alertsEnabled"); manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }; return }
+        if monitoredRisks.isEmpty { proximityAlertsEnabled = false; UserDefaults.standard.set(false, forKey: "alertsEnabled"); manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }; manager.stopMonitoringSignificantLocationChanges(); return }
         if UserDefaults.standard.bool(forKey: "alertsEnabled") && authorization == .authorizedAlways {
             proximityAlertsEnabled = true
+            manager.startMonitoringSignificantLocationChanges()
             manager.requestLocation()
         }
     }
 
     private func monitorRiskRegions() {
         guard authorization == .authorizedAlways, proximityAlertsEnabled, hasFreshLocationForAlerts, (accuracy ?? 999) <= 200, let current = coordinate else { monitoringActive = false; return }
-        let nearby = monitoredRisks
+        let validRisks = RiskPlace.validated(monitoredRisks)
+        monitoredRisks = validRisks
+        let nearby = validRisks
             .compactMap { risk -> (risk: RiskPlace, score: Double)? in
-                guard risk.locationPrecision == .point, let distance = risk.distance(from: current), distance <= 10000 else { return nil }
-                let distanceScore = max(0, 1 - (distance / 10000))
+                guard risk.locationPrecision == .point, let distance = risk.distance(from: current), distance <= 10000 + risk.alertRadius else { return nil }
+                let edgeDistanceScore = max(0, min(1, 1 - max(0, distance - risk.alertRadius) / 10000))
                 let severityScore = min(1, max(0, Double(risk.score) / 100))
                 let confidenceScore = min(1, max(0, Double(risk.confidenceScore) / 100))
-                let monitoringScore = distanceScore * 0.5 + severityScore * 0.3 + confidenceScore * 0.2
+                let monitoringScore = edgeDistanceScore * 0.5 + severityScore * 0.3 + confidenceScore * 0.2
                 return (risk, monitoringScore)
             }
             .sorted { $0.score > $1.score }
@@ -472,7 +486,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         if hasPermission {
             manager.requestLocation()
         } else if permissionDenied {
-            if UserDefaults.standard.bool(forKey: "alertsEnabled") { proximityAlertsEnabled = false; monitoringActive = false; UserDefaults.standard.set(false, forKey: "alertsEnabled"); manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) } }
+            if UserDefaults.standard.bool(forKey: "alertsEnabled") { proximityAlertsEnabled = false; monitoringActive = false; UserDefaults.standard.set(false, forKey: "alertsEnabled"); manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }; manager.stopMonitoringSignificantLocationChanges() }
             errorMessage = "Autorisation refusée. Vous pouvez l’activer dans Réglages."
         }
     }
@@ -485,7 +499,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         lastUpdated = Date()
         hasFreshLocationForAlerts = location.horizontalAccuracy <= 200
         isUsingCachedLocation = false
-        if location.horizontalAccuracy > 200 { hasFreshLocationForAlerts = false; monitoringActive = false; manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) } }
+        if location.horizontalAccuracy > 200 { hasFreshLocationForAlerts = false; monitoringActive = false; return }
         errorMessage = location.horizontalAccuracy > 200 ? "Position très imprécise (±\(Int(location.horizontalAccuracy)) m) : distances et alertes désactivées." : location.horizontalAccuracy > 100 ? "Position GPS approximative (±\(Int(location.horizontalAccuracy)) m)." : nil
         UserDefaults.standard.set(location.coordinate.latitude, forKey: "lastLatitude")
         UserDefaults.standard.set(location.coordinate.longitude, forKey: "lastLongitude")
@@ -578,7 +592,7 @@ final class TravelGuardStore: ObservableObject {
     private let cacheMaxAge: TimeInterval = 365 * 24 * 60 * 60
     @Published private(set) var lastRiskSyncAt: Date?
     private var latestRiskSyncGeneration = 0
-    private let riskRepository: any RiskRepository = RemoteRiskRepository(endpoint: (Bundle.main.object(forInfoDictionaryKey: "RiskFeedURL") as? String).flatMap(URL.init(string:)), allowedHost: Bundle.main.object(forInfoDictionaryKey: "RiskFeedAllowedHost") as? String)
+    private let riskRepository: any RiskRepository
     @Published private(set) var riskSyncState = "Aucune source de risques configurée"
     var riskDataFreshnessLabel: String {
         guard let lastRiskSyncAt else { return "Données non synchronisées" }
@@ -597,7 +611,8 @@ final class TravelGuardStore: ObservableObject {
     }
     var storeHasRisks: Bool { !risks.isEmpty }
 
-    init() {
+    init(riskRepository: any RiskRepository = RemoteRiskRepository(endpoint: (Bundle.main.object(forInfoDictionaryKey: "RiskFeedURL") as? String).flatMap(URL.init(string:)), allowedHost: Bundle.main.object(forInfoDictionaryKey: "RiskFeedAllowedHost") as? String)) {
+        self.riskRepository = riskRepository
         onboardingComplete = UserDefaults.standard.bool(forKey: "onboardingComplete")
         lastRiskSyncAt = nil
         try? FileManager.default.createDirectory(at: riskCacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -621,18 +636,19 @@ final class TravelGuardStore: ObservableObject {
 
     func synchronizeRisks(in bbox: RiskBoundingBox) async {
         let generation = beginRiskSync()
-        do { let incoming = try await riskRepository.fetchRisks(in: bbox); updateRisks(incoming, generation: generation); riskSyncState = incoming.isEmpty ? "Aucun risque validé reçu" : "Risques régionaux synchronisés" } catch { riskSyncState = "Source régionale indisponible" }
+        do { let incoming = try await riskRepository.fetchRisks(in: bbox); updateRisks(incoming, generation: generation, merge: true, bbox: bbox); riskSyncState = incoming.isEmpty ? "Aucun risque validé reçu pour cette zone" : "Risques régionaux synchronisés" } catch { riskSyncState = "Source régionale indisponible" }
     }
 
-    func updateRisks(_ incoming: [RiskPlace], generation: Int? = nil) {
+    func updateRisks(_ incoming: [RiskPlace], generation: Int? = nil, merge: Bool = false, bbox: RiskBoundingBox? = nil) {
         if let generation, generation < latestRiskSyncGeneration { return }
         purgeNotificationCooldowns()
         if let generation { latestRiskSyncGeneration = generation }
         let validated = RiskPlace.validated(incoming)
-        risks = Array(validated.prefix(maxCachedRisks))
+        let combined: [RiskPlace] = merge ? Array(Dictionary(uniqueKeysWithValues: (risks + validated).map { ($0.id, $0) }).values) : validated
+        risks = Array(combined.filter { Date().timeIntervalSince($0.updatedAt) <= cacheMaxAge }.prefix(maxCachedRisks))
         lastRiskSyncAt = Date()
         location.updateRisks(risks)
-        let envelope = RiskCacheEnvelope(schemaVersion: 2, savedAt: lastRiskSyncAt ?? Date(), risks: risks)
+        let envelope = RiskCacheEnvelope(schemaVersion: 2, savedAt: lastRiskSyncAt ?? Date(), risks: risks, bbox: bbox, etag: UserDefaults.standard.string(forKey: "travelguard.feed.etag"), expiresAt: Date().addingTimeInterval(24 * 60 * 60))
         if let data = try? JSONEncoder().encode(envelope), data.count <= maxCacheBytes, risks.count <= maxCachedRisks { try? data.write(to: riskCacheURL, options: [.atomic]) }
     }
 
@@ -794,6 +810,10 @@ struct QuickLink: View {
 import MapKit
 import SwiftUI
 
+struct RiskMapLegend: View {
+    var body: some View { HStack(spacing: 8) { Label("Faible", systemImage: "circle.fill").foregroundStyle(.green); Label("Modéré", systemImage: "circle.fill").foregroundStyle(.orange); Label("Élevé", systemImage: "circle.fill").foregroundStyle(.red); Label("Zone", systemImage: "circle.dotted").foregroundStyle(.red) }.font(.caption2.bold()).padding(8).background(.thinMaterial).clipShape(Capsule()) }
+}
+
 struct RiskMapView: View {
     @EnvironmentObject private var store: TravelGuardStore
     @State private var region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 0, longitude: 0), span: MKCoordinateSpan(latitudeDelta: 45, longitudeDelta: 45))
@@ -805,8 +825,25 @@ struct RiskMapView: View {
     @State private var isRequestingPosition = false
     @State private var positionSearchTimedOut = false
     @State private var positionTask: Task<Void, Never>?
+    @State private var viewportTask: Task<Void, Never>?
 
     private var displayedRisks: [RiskPlace] { RiskPlace.inViewport(region, risks: store.risks) }
+    private func requestViewportRisks() {
+        viewportTask?.cancel()
+        let snapshot = region
+        guard snapshot.span.latitudeDelta <= 90, snapshot.span.longitudeDelta <= 180 else { return }
+        viewportTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard !Task.isCancelled else { return }
+            let lat = min(max(snapshot.span.latitudeDelta, 0.001), 90)
+            let lon = min(max(snapshot.span.longitudeDelta, 0.001), 180)
+            let west = ((snapshot.center.longitude - lon / 2 + 180).truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) - 180
+            let east = ((snapshot.center.longitude + lon / 2 + 180).truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) - 180
+            let south = max(-90, snapshot.center.latitude - lat / 2)
+            let north = min(90, snapshot.center.latitude + lat / 2)
+            await store.synchronizeRisks(in: RiskBoundingBox(west: west, south: south, east: east, north: north, page: 1))
+        }
+    }
 
     private func recenter() {
         positionTask?.cancel()
@@ -826,8 +863,8 @@ struct RiskMapView: View {
     private func zoom(by factor: Double) {
         suppressNextCameraChange = true
         hasUserInteractedWithMap = true
-        let nextLatitude = min(max(region.span.latitudeDelta * factor, 0.001), 45.0)
-        let nextLongitude = min(max(region.span.longitudeDelta * factor, 0.001), 45.0)
+        let nextLatitude = min(max(region.span.latitudeDelta * factor, 0.001), 180.0)
+        let nextLongitude = min(max(region.span.longitudeDelta * factor, 0.001), 360.0)
         withAnimation { region.span = MKCoordinateSpan(latitudeDelta: nextLatitude, longitudeDelta: nextLongitude) }
     }
 
@@ -835,10 +872,10 @@ struct RiskMapView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 HStack { VStack(alignment: .leading) { Text("ZONE DE VIGILANCE").font(.caption.weight(.heavy)).tracking(1.2).foregroundStyle(TGColor.muted); Text("Carte des risques").font(.title.bold()) }; Spacer(); Label((store.location.city.isEmpty || store.location.city == "Localisation requise" || store.location.city == "Position indisponible") ? "Localisation…" : store.location.city, systemImage: "location.fill").font(.caption.bold()).padding(9).background(.white).clipShape(Capsule()) }.padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 12)
-                Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: displayedRisks) { risk in MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) { Button { selected = risk } label: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(risk.score >= 80 ? .purple : risk.score >= 60 ? .red : risk.score >= 30 ? .orange : .green).padding(9).background(.white).clipShape(Circle()).shadow(radius: 3) }.accessibilityLabel("\(risk.name), risque \(risk.severityLabel), confiance \(risk.confidenceScore) pour cent") } }.onMapCameraChange(frequency: .onEnd) { _ in if suppressNextCameraChange { suppressNextCameraChange = false } else { hasUserInteractedWithMap = true; hasInitiallyCentered = true } }.frame(height: 260).clipShape(RoundedRectangle(cornerRadius: 22)).padding(.horizontal, 20).overlay(alignment: .topLeading) { if !store.location.hasPermission || store.location.coordinate == nil || (store.location.accuracy ?? 999) > 200 { VStack(alignment: .leading, spacing: 7) { Label(store.location.locationStatus, systemImage: "location.slash").font(.caption.bold()); if let error = store.location.errorMessage { Text(error).font(.caption2).lineLimit(2) }; if let geoError = store.location.geocodingErrorMessage { Text(geoError).font(.caption2).lineLimit(2) }; Button(!store.location.servicesEnabled ? "Ouvrir Réglages" : store.location.permissionDenied || !store.location.hasPermission ? "Activer ma position" : "Améliorer la précision") { store.location.requestPermission() }.font(.caption.bold()).buttonStyle(.borderedProminent).tint(TGColor.teal) }.padding(12).background(.thinMaterial).clipShape(RoundedRectangle(cornerRadius: 14)).padding(10) } }.overlay(alignment: .bottomTrailing) { HStack(spacing: 8) { Button { recenter() } label: { positionSearchTimedOut ? AnyView(Image(systemName: "arrow.clockwise").frame(width: 44, height: 44)) : isRequestingPosition ? AnyView(ProgressView().frame(width: 44, height: 44)) : AnyView(Image(systemName: "location.fill").frame(width: 44, height: 44)) }.background(.white).clipShape(Circle()).accessibilityLabel(positionSearchTimedOut ? "Position précise indisponible · Réessayer" : isRequestingPosition ? "Recherche de votre position" : "Recentrer sur ma position"); Button { showFullScreen = true } label: { Image(systemName: "arrow.up.left.and.arrow.down.right").padding(10).background(.white).clipShape(Circle()) } }.padding(12) }.overlay(alignment: .bottomLeading) { HStack(spacing: 8) { Button { zoom(by: 0.55) } label: { Image(systemName: "plus").frame(width: 44, height: 44) }.accessibilityLabel("Zoomer"); Button { zoom(by: 1.8) } label: { Image(systemName: "minus").frame(width: 44, height: 44) }.accessibilityLabel("Dézoomer") }.font(.headline).foregroundStyle(TGColor.ink).background(.ultraThinMaterial).clipShape(Capsule()).padding(12) }
+                Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: displayedRisks) { risk in MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) { Button { selected = risk } label: { Image(systemName: risk.locationPrecision == .point ? "exclamationmark.triangle.fill" : "circle.dotted").foregroundStyle(risk.score >= 60 ? .red : risk.score >= 30 ? .orange : .green).padding(9).background(.white).clipShape(Circle()).shadow(radius: 3) }.accessibilityLabel("\(risk.name), risque \(risk.severityLabel), confiance \(risk.confidenceScore) pour cent") } }.onMapCameraChange(frequency: .onEnd) { _ in if suppressNextCameraChange { suppressNextCameraChange = false } else { hasUserInteractedWithMap = true; hasInitiallyCentered = true; requestViewportRisks() } }.frame(height: 260).overlay(alignment: .topLeading) { RiskMapLegend().padding(10) }.clipShape(RoundedRectangle(cornerRadius: 22)).padding(.horizontal, 20).overlay(alignment: .topLeading) { if !store.location.hasPermission || store.location.coordinate == nil || (store.location.accuracy ?? 999) > 200 { VStack(alignment: .leading, spacing: 7) { Label(store.location.locationStatus, systemImage: "location.slash").font(.caption.bold()); if let error = store.location.errorMessage { Text(error).font(.caption2).lineLimit(2) }; if let geoError = store.location.geocodingErrorMessage { Text(geoError).font(.caption2).lineLimit(2) }; Button(!store.location.servicesEnabled ? "Ouvrir Réglages" : store.location.permissionDenied || !store.location.hasPermission ? "Activer ma position" : "Améliorer la précision") { store.location.requestPermission() }.font(.caption.bold()).buttonStyle(.borderedProminent).tint(TGColor.teal) }.padding(12).background(.thinMaterial).clipShape(RoundedRectangle(cornerRadius: 14)).padding(10) } }.overlay(alignment: .bottomTrailing) { HStack(spacing: 8) { Button { recenter() } label: { positionSearchTimedOut ? AnyView(Image(systemName: "arrow.clockwise").frame(width: 44, height: 44)) : isRequestingPosition ? AnyView(ProgressView().frame(width: 44, height: 44)) : AnyView(Image(systemName: "location.fill").frame(width: 44, height: 44)) }.background(.white).clipShape(Circle()).accessibilityLabel(positionSearchTimedOut ? "Position précise indisponible · Réessayer" : isRequestingPosition ? "Recherche de votre position" : "Recentrer sur ma position"); Button { showFullScreen = true } label: { Image(systemName: "arrow.up.left.and.arrow.down.right").padding(10).background(.white).clipShape(Circle()) } }.padding(12) }.overlay(alignment: .bottomLeading) { HStack(spacing: 8) { Button { zoom(by: 0.5) } label: { Image(systemName: "plus").frame(width: 44, height: 44) }.accessibilityLabel("Zoomer"); Button { zoom(by: 2.0) } label: { Image(systemName: "minus").frame(width: 44, height: 44) }.accessibilityLabel("Dézoomer") }.font(.headline).foregroundStyle(TGColor.ink).background(.ultraThinMaterial).clipShape(Capsule()).padding(12) }
                 if store.location.coordinate == nil || (store.location.accuracy ?? 999) > 200 { Text(store.location.permissionDenied ? "Autorisez la localisation dans Réglages pour afficher les risques réellement proches de vous." : store.location.coordinate == nil ? "Localisation en cours… Activez votre position pour afficher la carte autour de vous." : "Position très imprécise : les distances sont masquées.").font(.footnote).foregroundStyle(TGColor.muted).padding(.horizontal, 20).padding(.top, 14) }
-                ScrollView { VStack(alignment: .leading, spacing: 10) { Text("Signaux dans la zone visible · proximité autour de vous").font(.title3.bold()).padding(.top, 16); if displayedRisks.isEmpty { Text(store.location.coordinate == nil ? "Localisation en cours…" : (store.location.accuracy ?? 999) > 200 ? "Position très imprécise…" : store.risks.isEmpty ? "Aucun risque synchronisé dans l’application." : store.riskDataIsStale ? "Aucun risque connu dans les données disponibles. \(store.riskDataFreshnessLabel). Déplacez la carte pour explorer." : "Aucun risque connu dans la zone visible. \(store.risks.count) risques sont disponibles dans la base. Déplacez ou zoomez la carte pour explorer.").font(.subheadline).foregroundStyle(TGColor.muted).tgCard() }; ForEach(displayedRisks) { risk in Button { selected = risk } label: { HStack { VStack(spacing: 0) { Text(risk.severityLabel.capitalized).font(.caption.bold()); Text("Risque").font(.caption2) }.accessibilityElement(children: .combine).foregroundStyle(TGColor.coral).frame(width: 48, height: 48).background(TGColor.coral.opacity(0.1)).clipShape(Circle()); VStack(alignment: .leading) { Text(risk.name).font(.subheadline.bold()); Text("\(risk.category) · \(((store.location.accuracy ?? 999) > 200 ? "Distance indisponible" : risk.formattedDistance(from: store.location.coordinate)))").font(.caption.bold()).foregroundStyle(TGColor.teal); if let accuracy = store.location.accuracy, accuracy > 50 { Text(accuracy > 200 ? "Distance indisponible · position très imprécise" : "Distance approximative · GPS ±\(Int(accuracy)) m").font(.caption2).foregroundStyle(TGColor.amber) }; Text(risk.summary).font(.caption).foregroundStyle(TGColor.muted).lineLimit(2) }; Spacer(); Image(systemName: "chevron.right").foregroundStyle(TGColor.muted) }.foregroundStyle(TGColor.ink).padding(12).background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) } } }.padding(.horizontal, 20).padding(.bottom, 24) }
-            }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).onAppear { store.location.refresh(); centerInitiallyIfNeeded() }.onChange(of: store.location.lastUpdated) { _, _ in positionTask?.cancel(); positionTask = nil; isRequestingPosition = false; positionSearchTimedOut = false; centerInitiallyIfNeeded() }.onChange(of: store.location.requestCompletedAt) { _, _ in positionTask?.cancel(); positionTask = nil; isRequestingPosition = false; if store.location.coordinate != nil { positionSearchTimedOut = false } }.onChange(of: store.location.errorMessage) { _, _ in positionTask?.cancel(); positionTask = nil; isRequestingPosition = false; positionSearchTimedOut = store.location.coordinate == nil }.onDisappear { positionTask?.cancel(); positionTask = nil }
+                ScrollView { VStack(alignment: .leading, spacing: 10) { Text("Signaux dans la zone visible").font(.title3.bold()).padding(.top, 16); if displayedRisks.isEmpty { Text(store.location.coordinate == nil ? "Localisation en cours…" : (store.location.accuracy ?? 999) > 200 ? "Position très imprécise…" : store.risks.isEmpty ? "Aucun risque synchronisé dans l’application." : store.riskDataIsStale ? "Aucun risque connu dans les données disponibles. \(store.riskDataFreshnessLabel). Déplacez la carte pour explorer." : "Aucun risque connu dans la zone visible. \(store.risks.count) risques sont disponibles dans la base. Déplacez ou zoomez la carte pour explorer.").font(.subheadline).foregroundStyle(TGColor.muted).tgCard() }; ForEach(displayedRisks) { risk in Button { selected = risk } label: { HStack { VStack(spacing: 0) { Text(risk.severityLabel.capitalized).font(.caption.bold()); Text("Risque").font(.caption2) }.accessibilityElement(children: .combine).foregroundStyle(TGColor.coral).frame(width: 48, height: 48).background(TGColor.coral.opacity(0.1)).clipShape(Circle()); VStack(alignment: .leading) { Text(risk.name).font(.subheadline.bold()); Text("\(risk.category) · \(((store.location.accuracy ?? 999) > 200 ? "Distance indisponible" : risk.formattedDistance(from: store.location.coordinate)))").font(.caption.bold()).foregroundStyle(TGColor.teal); if let accuracy = store.location.accuracy, accuracy > 50 { Text(accuracy > 200 ? "Distance indisponible · position très imprécise" : "Distance approximative · GPS ±\(Int(accuracy)) m").font(.caption2).foregroundStyle(TGColor.amber) }; Text(risk.summary).font(.caption).foregroundStyle(TGColor.muted).lineLimit(2) }; Spacer(); Image(systemName: "chevron.right").foregroundStyle(TGColor.muted) }.foregroundStyle(TGColor.ink).padding(12).background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) } } }.padding(.horizontal, 20).padding(.bottom, 24) }
+            }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).onAppear { store.location.refresh(); centerInitiallyIfNeeded() }.onChange(of: store.location.lastUpdated) { _, _ in positionTask?.cancel(); positionTask = nil; isRequestingPosition = false; positionSearchTimedOut = false; centerInitiallyIfNeeded() }.onChange(of: store.location.requestCompletedAt) { _, _ in positionTask?.cancel(); positionTask = nil; isRequestingPosition = false; if store.location.coordinate != nil { positionSearchTimedOut = false } }.onChange(of: store.location.errorMessage) { _, _ in positionTask?.cancel(); positionTask = nil; isRequestingPosition = false; positionSearchTimedOut = store.location.coordinate == nil }.onDisappear { positionTask?.cancel(); positionTask = nil; viewportTask?.cancel(); viewportTask = nil }
             .sheet(item: $selected) { risk in RiskDetailView(risk: risk) }
             .fullScreenCover(isPresented: $showFullScreen) { FullScreenRiskMapView(region: $region, selected: $selected) }
         }
@@ -852,19 +889,19 @@ struct FullScreenRiskMapView: View {
     @Binding var selected: RiskPlace?
     private var displayedRisks: [RiskPlace] { RiskPlace.inViewport(region, risks: store.risks) }
     private func recenter() { if store.location.isUsingCachedLocation { store.location.refresh(); return }; guard let coordinate = store.location.coordinate else { store.location.requestPermission(); return }; region.center = coordinate; region.span = MKCoordinateSpan(latitudeDelta: 0.035, longitudeDelta: 0.035) }
-    private func zoom(by factor: Double) { region.span = MKCoordinateSpan(latitudeDelta: min(max(region.span.latitudeDelta * factor, 0.001), 0.35), longitudeDelta: min(max(region.span.longitudeDelta * factor, 0.001), 0.35)) }
+    private func zoom(by factor: Double) { region.span = MKCoordinateSpan(latitudeDelta: min(max(region.span.latitudeDelta * factor, 0.001), 180.0), longitudeDelta: min(max(region.span.longitudeDelta * factor, 0.001), 360.0)) }
     var body: some View {
         NavigationStack {
             ZStack(alignment: .topTrailing) {
                 Color.black.ignoresSafeArea()
-                Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: displayedRisks) { risk in MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) { Button { selected = risk } label: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(risk.score >= 80 ? .purple : risk.score >= 60 ? .red : risk.score >= 30 ? .orange : .green).padding(10).background(.white).clipShape(Circle()).shadow(radius: 4) }.accessibilityLabel("\(risk.name), risque \(risk.severityLabel), confiance \(risk.confidenceScore) pour cent") } }.mapControls { MapUserLocationButton(); MapCompass(); MapScaleView() }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.black).ignoresSafeArea().overlay(alignment: .bottomLeading) { HStack(spacing: 8) { Button { recenter() } label: { Image(systemName: "location.fill").frame(width: 44, height: 44) }.accessibilityLabel("Recentrer sur ma position"); Button { zoom(by: 0.55) } label: { Image(systemName: "plus").frame(width: 44, height: 44) }.accessibilityLabel("Zoomer"); Button { zoom(by: 1.8) } label: { Image(systemName: "minus").frame(width: 44, height: 44) }.accessibilityLabel("Dézoomer") }.font(.headline).foregroundStyle(TGColor.ink).background(.ultraThinMaterial).clipShape(Capsule()).padding(.leading, 18).padding(.bottom, 28) }
+                Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: displayedRisks) { risk in MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) { Button { selected = risk } label: { Image(systemName: risk.locationPrecision == .point ? "exclamationmark.triangle.fill" : "circle.dotted").foregroundStyle(risk.score >= 60 ? .red : risk.score >= 30 ? .orange : .green).padding(10).background(.white).clipShape(Circle()).shadow(radius: 4) }.accessibilityLabel("\(risk.name), risque \(risk.severityLabel), confiance \(risk.confidenceScore) pour cent") } }.mapControls { MapUserLocationButton(); MapCompass(); MapScaleView() }.overlay(alignment: .topLeading) { RiskMapLegend().padding(.top, 58).padding(.leading, 14) }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.black).ignoresSafeArea().overlay(alignment: .bottomLeading) { HStack(spacing: 8) { Button { recenter() } label: { Image(systemName: "location.fill").frame(width: 44, height: 44) }.accessibilityLabel("Recentrer sur ma position"); Button { zoom(by: 0.5) } label: { Image(systemName: "plus").frame(width: 44, height: 44) }.accessibilityLabel("Zoomer"); Button { zoom(by: 2.0) } label: { Image(systemName: "minus").frame(width: 44, height: 44) }.accessibilityLabel("Dézoomer") }.font(.headline).foregroundStyle(TGColor.ink).background(.ultraThinMaterial).clipShape(Capsule()).padding(.leading, 18).padding(.bottom, 28) }
             }.toolbar { ToolbarItem(placement: .topBarLeading) { Button("Fermer") { dismiss() } } }
             .sheet(item: $selected) { risk in RiskDetailView(risk: risk) }
         }
     }
 }
 
-struct RiskDetailView: View { let risk: RiskPlace; var body: some View { ScrollView { VStack(alignment: .leading, spacing: 14) { Text(risk.category.uppercased()).font(.caption.bold()).foregroundStyle(TGColor.teal); Text(risk.name).font(.title.bold()); VStack(alignment: .leading, spacing: 4) { Text("Risque : \(risk.severityLabel.capitalized)").font(.headline); Text(risk.reliabilityLabel).font(.subheadline).foregroundStyle(TGColor.teal); Text("Calculé à partir de la fraîcheur, de la provenance structurée et des preuves dédupliquées. Ce n’est pas une probabilité statistique.").font(.caption).foregroundStyle(TGColor.muted) }; Text(risk.summary).foregroundStyle(TGColor.muted); Label("\(risk.reportCount) signalements enregistrés", systemImage: "person.2.fill").font(.subheadline); Text(risk.source).font(.caption).foregroundStyle(TGColor.muted); Text(risk.freshnessLabel).font(.caption).foregroundStyle(TGColor.muted); ForEach(risk.signals, id: \.self) { signal in Text("• \(signal)") }; Spacer() }.padding(24) }.presentationDetents([.medium]) } }
+struct RiskDetailView: View { let risk: RiskPlace; var body: some View { ScrollView { VStack(alignment: .leading, spacing: 14) { Text(risk.category.uppercased()).font(.caption.bold()).foregroundStyle(TGColor.teal); Text(risk.name).font(.title.bold()); VStack(alignment: .leading, spacing: 4) { Text("Risque : \(risk.severityLabel.capitalized)").font(.headline); Text(risk.reliabilityLabel).font(.subheadline).foregroundStyle(TGColor.teal); Text("Calculé à partir de la fraîcheur, de la provenance structurée et des preuves dédupliquées. Ce n’est pas une probabilité statistique.").font(.caption).foregroundStyle(TGColor.muted) }; Text(risk.summary).foregroundStyle(TGColor.muted); Text("Précision géographique : \(risk.locationPrecision == .point ? "point" : risk.locationPrecision == .neighborhood ? "quartier" : risk.locationPrecision == .city ? "ville" : "pays")").font(.caption).foregroundStyle(TGColor.muted); Label("\(risk.reportCount) signalements déclarés par la source", systemImage: "person.2.fill").font(.subheadline); Text(risk.source).font(.caption).foregroundStyle(TGColor.muted); Text(risk.freshnessLabel).font(.caption).foregroundStyle(TGColor.muted); ForEach(risk.signals, id: \.self) { signal in Text("• \(signal)") }; Spacer() }.padding(24) }.presentationDetents([.medium]) } }
 ''',
 'ScannerView.swift': r'''import CoreImage
 import Foundation
@@ -900,6 +937,7 @@ enum OCRSupport {
 
     static func parse(_ lines: [String], fallbackCurrency: String) -> OCRSummary {
         var result = OCRSummary(); result.currency = fallbackCurrency
+        var currencyCounts: [String: Int] = [:]; var totalCurrency = ""; var totalPriority = -1
         let regex = try? NSRegularExpression(pattern: amountPattern, options: .caseInsensitive)
         for line in lines {
             let lower = line.lowercased()
@@ -910,22 +948,27 @@ enum OCRSupport {
                 let prefix = Range(match.range(at: 1), in: line).map { String(line[$0]) } ?? ""
                 let suffix = Range(match.range(at: 3), in: line).map { String(line[$0]) } ?? ""
                 let detectedCurrency = !prefix.isEmpty ? prefix : suffix
-                if !detectedCurrency.isEmpty { result.currency = detectedCurrency }
+                if !detectedCurrency.isEmpty { currencyCounts[detectedCurrency.uppercased(), default: 0] += 1 }
                 result.amounts.append(value)
-                let isTotal = lower.range(of: #"\\b(total|amount due|à payer|a payer)\\b"#, options: .regularExpression) != nil
+                let isAmountDue = lower.range(of: #"\\b(amount due|à payer|a payer|due)\\b"#, options: .regularExpression) != nil
+                let isGrandTotal = lower.range(of: #"\\b(grand total|total général|total general)\\b"#, options: .regularExpression) != nil
+                let isTotal = lower.range(of: #"\\b(total)\\b"#, options: .regularExpression) != nil
+                let totalRank = isAmountDue ? 4 : isGrandTotal ? 3 : isTotal ? 2 : 0
                 let isSubtotal = lower.range(of: #"\\b(subtotal|sous[- ]?total)\\b"#, options: .regularExpression) != nil
                 let isTax = lower.range(of: #"\\b(taxe?|tva|vat)\\b"#, options: .regularExpression) != nil
                 let isService = lower.range(of: #"\\b(service|tip|service charge|frais|commission|surcharge|supplement)\\b"#, options: .regularExpression) != nil
-                if isTotal { result.total = value } else if isSubtotal { result.subtotal = value } else if isTax { result.tax = value } else if isService { result.service = value } else { result.itemAmounts.append(value) }
+                let looksNonPrice = lower.range(of: #"\\b(date|table|ticket|receipt|facture|invoice|ref|no\\.?|n[°º])\\b"#, options: .regularExpression) != nil
+                if totalRank > 0 { if totalRank >= totalPriority { result.total = value; totalPriority = totalRank; totalCurrency = detectedCurrency } } else if isSubtotal { result.subtotal = value } else if isTax { result.tax = value } else if isService { result.service = value } else if !looksNonPrice { result.itemAmounts.append(value) }
             }
         }
+        if !totalCurrency.isEmpty { result.currency = totalCurrency.uppercased() } else if let dominant = currencyCounts.max(by: { $0.value < $1.value })?.key { result.currency = dominant }
         return result
     }
 }
 
 enum OCRAssessment: Equatable {
     case coherent, unusual, abusive, undetermined
-    var title: String { switch self { case .coherent: return "Prix cohérent"; case .unusual: return "Prix inhabituel"; case .abusive: return "Prix probablement abusif"; case .undetermined: return "Impossible à déterminer" } }
+    var title: String { switch self { case .coherent: return "Total mathématiquement cohérent"; case .unusual: return "Écart arithmétique à vérifier"; case .abusive: return "Prix potentiellement abusif"; case .undetermined: return "Impossible à déterminer" } }
     var icon: String { switch self { case .coherent: return "checkmark.circle.fill"; case .unusual: return "exclamationmark.triangle.fill"; case .abusive: return "xmark.octagon.fill"; case .undetermined: return "questionmark.circle.fill" } }
 }
 
@@ -961,13 +1004,15 @@ struct ScannerView: View {
     @State private var summary = OCRSummary()
     @State private var isAnalyzing = false
     @State private var showingCamera = false
+    @State private var analysisTask: Task<Void, Never>?
+    @State private var analysisGeneration = 0
     var body: some View {
         NavigationStack { ScrollView { VStack(alignment: .leading, spacing: 18) {
             Text("CONTRÔLE INTELLIGENT").font(.caption.weight(.heavy)).tracking(1.2).foregroundStyle(TGColor.muted)
             Text("Scanner avant de payer").font(.largeTitle.bold())
             Text("Cadrez un menu, une addition ou un billet. L’analyse est locale et indicative : aucune conclusion officielle n’est inventée.").foregroundStyle(TGColor.muted)
             Button { showingCamera = true } label: { Label("Prendre une photo", systemImage: "camera.fill").font(.headline).foregroundStyle(.white).frame(maxWidth: .infinity).padding().background(TGColor.teal).clipShape(RoundedRectangle(cornerRadius: 16)) }
-            PhotosPicker(selection: $selectedItem, matching: .images) { Label("Choisir une photo", systemImage: "photo").font(.headline).foregroundStyle(TGColor.ink).frame(maxWidth: .infinity).padding().background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) }.onChange(of: selectedItem) { _, item in Task { await analyze(item) } }
+            PhotosPicker(selection: $selectedItem, matching: .images) { Label("Choisir une photo", systemImage: "photo").font(.headline).foregroundStyle(TGColor.ink).frame(maxWidth: .infinity).padding().background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) }.onChange(of: selectedItem) { _, item in analysisTask?.cancel(); analysisTask = Task { await analyze(item) } }
             if isAnalyzing { ProgressView("Analyse locale du document…").padding(.vertical) }
             if !recognizedLines.isEmpty { VStack(alignment: .leading, spacing: 10) {
                 let assessment = summary.assessment(suspectLines: suspectLines)
@@ -981,6 +1026,7 @@ struct ScannerView: View {
     }
     @MainActor private func analyze(_ item: PhotosPickerItem?) async { guard let item else { return }; defer { selectedItem = nil }; do { guard let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { recognizedLines = ["Image impossible à charger."]; return }; await recognize(image) } catch { recognizedLines = ["La photo n’a pas pu être lue. Choisissez une autre image et réessayez."] } }
     @MainActor private func recognize(_ image: UIImage) async {
+        analysisGeneration += 1; let generation = analysisGeneration
         guard let prepared = OCRSupport.prepareImage(image), let cgImage = prepared.cgImage else { recognizedLines = ["Format d’image non pris en charge."]; return }
         isAnalyzing = true; recognizedLines = []; suspectLines = []; summary = OCRSummary()
         let languages = ["fr-FR", "en-US", "it-IT", "es-ES", "de-DE", "pt-PT", "sl-SI", "hr-HR"]
@@ -999,6 +1045,7 @@ struct ScannerView: View {
             do { try VNImageRequestHandler(cgImage: cgImage).perform([request]); semaphore.wait() } catch { outputLines = ["L’analyse a échoué. Vérifiez la lumière et réessayez."] }
             return (outputLines, requestSummary)
         }.value
+        guard generation == analysisGeneration, !Task.isCancelled else { return }
         recognizedLines = result.lines.isEmpty ? ["Aucun texte lisible détecté. Rapprochez le document et améliorez la lumière."] : result.lines
         summary = result.summary
         suspectLines = Set(result.lines.filter { line in
@@ -1012,12 +1059,13 @@ struct ScannerView: View {
 }
 
 extension OCRSupport {
+    private static let ciContext = CIContext()
     static func prepareImage(_ image: UIImage) -> UIImage? {
         let maxWidth: CGFloat = 2200; let scale = min(1, maxWidth / max(image.size.width, 1)); let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
         let renderer = UIGraphicsImageRenderer(size: size); let normalized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
         guard let input = CIImage(image: normalized), let filter = CIFilter(name: "CIColorControls") else { return normalized }
         filter.setValue(input, forKey: kCIInputImageKey); filter.setValue(1.15, forKey: kCIInputContrastKey); filter.setValue(0.05, forKey: kCIInputBrightnessKey)
-        guard let output = filter.outputImage, let cg = CIContext().createCGImage(output, from: output.extent) else { return normalized }
+        guard let output = filter.outputImage, let cg = ciContext.createCGImage(output, from: output.extent) else { return normalized }
         return UIImage(cgImage: cg, scale: normalized.scale, orientation: .up)
     }
 }

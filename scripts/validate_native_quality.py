@@ -35,6 +35,12 @@ assert "updateRisks" in all_swift
 assert "CLError" in all_swift
 assert "pausesLocationUpdatesAutomatically = true" in all_swift
 assert "monitoringScore" in all_swift
+assert "serverReliabilityIndex" in all_swift
+assert "sourceId" in all_swift
+assert "bbox" in all_swift
+assert "pageSize" in all_swift
+assert "requestViewportRisks" in all_swift
+assert "analysisGeneration" in all_swift
 assert "monitoringActive" in all_swift
 assert "isUsingCachedLocation" in all_swift
 assert "distanceFilter = 100" in all_swift
@@ -60,7 +66,7 @@ assert "requestCompletedAt" in all_swift
 assert "schemaVersion == 1" in all_swift
 assert "cacheMaxAge" in all_swift
 assert "protectionStatusLabel" in all_swift
-assert "Prix probablement abusif" in all_swift
+assert "Prix potentiellement abusif" in all_swift
 assert "INCONNUE" in all_swift
 assert "sourceSignal" in all_swift
 assert ".prefix(300)" not in all_swift

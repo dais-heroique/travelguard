@@ -90,6 +90,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
             proximityAlertsEnabled = false
             UserDefaults.standard.set(false, forKey: "alertsEnabled")
             manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }
+            manager.stopMonitoringSignificantLocationChanges()
             return
         }
         proximityAlertsEnabled = true
@@ -108,7 +109,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
                     self.errorMessage = "Les notifications sont nécessaires pour les alertes de proximité."
                     return
                 }
-                if self.authorization == .authorizedAlways { self.manager.requestLocation() }
+                if self.authorization == .authorizedAlways { self.manager.startMonitoringSignificantLocationChanges(); self.manager.requestLocation() }
                 else { self.errorMessage = "Autorisez la localisation Toujours pour installer les alertes autour de vous." }
             }
         }
@@ -121,8 +122,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
                 self.notificationPermission = settings.authorizationStatus
                 self.manager.monitoredRegions.forEach { self.manager.stopMonitoring(for: $0) }
                 self.monitoringActive = false
-                if settings.authorizationStatus == .authorized && self.authorization == .authorizedAlways { self.manager.requestLocation() }
-                else if settings.authorizationStatus != .authorized { self.proximityAlertsEnabled = false; self.monitoringActive = false; UserDefaults.standard.set(false, forKey: "alertsEnabled") }
+                if settings.authorizationStatus == .authorized && self.authorization == .authorizedAlways { self.manager.startMonitoringSignificantLocationChanges(); self.manager.requestLocation() }
+                else if settings.authorizationStatus != .authorized { self.proximityAlertsEnabled = false; self.monitoringActive = false; self.manager.stopMonitoringSignificantLocationChanges(); UserDefaults.standard.set(false, forKey: "alertsEnabled") }
             }
         }
     }
@@ -134,24 +135,27 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
 
     /// Called by a future API/offline sync after replacing the authoritative risk set.
     func updateRisks(_ risks: [RiskPlace]) {
-        monitoredRisks = risks
+        monitoredRisks = RiskPlace.validated(risks)
         monitoringActive = false
-        if risks.isEmpty { proximityAlertsEnabled = false; UserDefaults.standard.set(false, forKey: "alertsEnabled"); manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }; return }
+        if monitoredRisks.isEmpty { proximityAlertsEnabled = false; UserDefaults.standard.set(false, forKey: "alertsEnabled"); manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }; manager.stopMonitoringSignificantLocationChanges(); return }
         if UserDefaults.standard.bool(forKey: "alertsEnabled") && authorization == .authorizedAlways {
             proximityAlertsEnabled = true
+            manager.startMonitoringSignificantLocationChanges()
             manager.requestLocation()
         }
     }
 
     private func monitorRiskRegions() {
         guard authorization == .authorizedAlways, proximityAlertsEnabled, hasFreshLocationForAlerts, (accuracy ?? 999) <= 200, let current = coordinate else { monitoringActive = false; return }
-        let nearby = monitoredRisks
+        let validRisks = RiskPlace.validated(monitoredRisks)
+        monitoredRisks = validRisks
+        let nearby = validRisks
             .compactMap { risk -> (risk: RiskPlace, score: Double)? in
-                guard risk.locationPrecision == .point, let distance = risk.distance(from: current), distance <= 10000 else { return nil }
-                let distanceScore = max(0, 1 - (distance / 10000))
+                guard risk.locationPrecision == .point, let distance = risk.distance(from: current), distance <= 10000 + risk.alertRadius else { return nil }
+                let edgeDistanceScore = max(0, min(1, 1 - max(0, distance - risk.alertRadius) / 10000))
                 let severityScore = min(1, max(0, Double(risk.score) / 100))
                 let confidenceScore = min(1, max(0, Double(risk.confidenceScore) / 100))
-                let monitoringScore = distanceScore * 0.5 + severityScore * 0.3 + confidenceScore * 0.2
+                let monitoringScore = edgeDistanceScore * 0.5 + severityScore * 0.3 + confidenceScore * 0.2
                 return (risk, monitoringScore)
             }
             .sorted { $0.score > $1.score }
@@ -190,7 +194,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         if hasPermission {
             manager.requestLocation()
         } else if permissionDenied {
-            if UserDefaults.standard.bool(forKey: "alertsEnabled") { proximityAlertsEnabled = false; monitoringActive = false; UserDefaults.standard.set(false, forKey: "alertsEnabled"); manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) } }
+            if UserDefaults.standard.bool(forKey: "alertsEnabled") { proximityAlertsEnabled = false; monitoringActive = false; UserDefaults.standard.set(false, forKey: "alertsEnabled"); manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }; manager.stopMonitoringSignificantLocationChanges() }
             errorMessage = "Autorisation refusée. Vous pouvez l’activer dans Réglages."
         }
     }
@@ -203,7 +207,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         lastUpdated = Date()
         hasFreshLocationForAlerts = location.horizontalAccuracy <= 200
         isUsingCachedLocation = false
-        if location.horizontalAccuracy > 200 { hasFreshLocationForAlerts = false; monitoringActive = false; manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) } }
+        if location.horizontalAccuracy > 200 { hasFreshLocationForAlerts = false; monitoringActive = false; return }
         errorMessage = location.horizontalAccuracy > 200 ? "Position très imprécise (±\(Int(location.horizontalAccuracy)) m) : distances et alertes désactivées." : location.horizontalAccuracy > 100 ? "Position GPS approximative (±\(Int(location.horizontalAccuracy)) m)." : nil
         UserDefaults.standard.set(location.coordinate.latitude, forKey: "lastLatitude")
         UserDefaults.standard.set(location.coordinate.longitude, forKey: "lastLongitude")
@@ -296,7 +300,7 @@ final class TravelGuardStore: ObservableObject {
     private let cacheMaxAge: TimeInterval = 365 * 24 * 60 * 60
     @Published private(set) var lastRiskSyncAt: Date?
     private var latestRiskSyncGeneration = 0
-    private let riskRepository: any RiskRepository = RemoteRiskRepository(endpoint: (Bundle.main.object(forInfoDictionaryKey: "RiskFeedURL") as? String).flatMap(URL.init(string:)), allowedHost: Bundle.main.object(forInfoDictionaryKey: "RiskFeedAllowedHost") as? String)
+    private let riskRepository: any RiskRepository
     @Published private(set) var riskSyncState = "Aucune source de risques configurée"
     var riskDataFreshnessLabel: String {
         guard let lastRiskSyncAt else { return "Données non synchronisées" }
@@ -315,7 +319,8 @@ final class TravelGuardStore: ObservableObject {
     }
     var storeHasRisks: Bool { !risks.isEmpty }
 
-    init() {
+    init(riskRepository: any RiskRepository = RemoteRiskRepository(endpoint: (Bundle.main.object(forInfoDictionaryKey: "RiskFeedURL") as? String).flatMap(URL.init(string:)), allowedHost: Bundle.main.object(forInfoDictionaryKey: "RiskFeedAllowedHost") as? String)) {
+        self.riskRepository = riskRepository
         onboardingComplete = UserDefaults.standard.bool(forKey: "onboardingComplete")
         lastRiskSyncAt = nil
         try? FileManager.default.createDirectory(at: riskCacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -339,18 +344,19 @@ final class TravelGuardStore: ObservableObject {
 
     func synchronizeRisks(in bbox: RiskBoundingBox) async {
         let generation = beginRiskSync()
-        do { let incoming = try await riskRepository.fetchRisks(in: bbox); updateRisks(incoming, generation: generation); riskSyncState = incoming.isEmpty ? "Aucun risque validé reçu" : "Risques régionaux synchronisés" } catch { riskSyncState = "Source régionale indisponible" }
+        do { let incoming = try await riskRepository.fetchRisks(in: bbox); updateRisks(incoming, generation: generation, merge: true, bbox: bbox); riskSyncState = incoming.isEmpty ? "Aucun risque validé reçu pour cette zone" : "Risques régionaux synchronisés" } catch { riskSyncState = "Source régionale indisponible" }
     }
 
-    func updateRisks(_ incoming: [RiskPlace], generation: Int? = nil) {
+    func updateRisks(_ incoming: [RiskPlace], generation: Int? = nil, merge: Bool = false, bbox: RiskBoundingBox? = nil) {
         if let generation, generation < latestRiskSyncGeneration { return }
         purgeNotificationCooldowns()
         if let generation { latestRiskSyncGeneration = generation }
         let validated = RiskPlace.validated(incoming)
-        risks = Array(validated.prefix(maxCachedRisks))
+        let combined: [RiskPlace] = merge ? Array(Dictionary(uniqueKeysWithValues: (risks + validated).map { ($0.id, $0) }).values) : validated
+        risks = Array(combined.filter { Date().timeIntervalSince($0.updatedAt) <= cacheMaxAge }.prefix(maxCachedRisks))
         lastRiskSyncAt = Date()
         location.updateRisks(risks)
-        let envelope = RiskCacheEnvelope(schemaVersion: 2, savedAt: lastRiskSyncAt ?? Date(), risks: risks)
+        let envelope = RiskCacheEnvelope(schemaVersion: 2, savedAt: lastRiskSyncAt ?? Date(), risks: risks, bbox: bbox, etag: UserDefaults.standard.string(forKey: "travelguard.feed.etag"), expiresAt: Date().addingTimeInterval(24 * 60 * 60))
         if let data = try? JSONEncoder().encode(envelope), data.count <= maxCacheBytes, risks.count <= maxCachedRisks { try? data.write(to: riskCacheURL, options: [.atomic]) }
     }
 

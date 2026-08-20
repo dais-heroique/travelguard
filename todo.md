@@ -366,3 +366,14 @@
 - [x] Durcir les vérifications de sécurité réseau et cache
 - [x] Ajouter les tests déterministes encore manquants
 - [x] Régénérer, valider, publier et sauvegarder la dernière version
+
+# Audit Pasted_content_28
+- [x] Corriger la persistance et l’usage du score serveur de fiabilité
+- [x] Corriger les relations preuves/sources et valider les URLs HTTPS autorisées
+- [x] Corriger la précision géographique affichée sur la carte
+- [x] Corriger la sélection et la validation des geofences
+- [x] Corriger le fetch viewport, anti-méridien et cache régional
+- [x] Corriger les limites de zoom et interactions de carte
+- [x] Auditer et corriger OCR, permissions, onboarding et accès aux réglages
+- [x] Ajouter les tests adversariaux de l’audit 28
+- [x] Régénérer, valider, synchroniser et sauvegarder la version finale

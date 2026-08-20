@@ -32,6 +32,7 @@ enum OCRSupport {
 
     static func parse(_ lines: [String], fallbackCurrency: String) -> OCRSummary {
         var result = OCRSummary(); result.currency = fallbackCurrency
+        var currencyCounts: [String: Int] = [:]; var totalCurrency = ""; var totalPriority = -1
         let regex = try? NSRegularExpression(pattern: amountPattern, options: .caseInsensitive)
         for line in lines {
             let lower = line.lowercased()
@@ -42,22 +43,27 @@ enum OCRSupport {
                 let prefix = Range(match.range(at: 1), in: line).map { String(line[$0]) } ?? ""
                 let suffix = Range(match.range(at: 3), in: line).map { String(line[$0]) } ?? ""
                 let detectedCurrency = !prefix.isEmpty ? prefix : suffix
-                if !detectedCurrency.isEmpty { result.currency = detectedCurrency }
+                if !detectedCurrency.isEmpty { currencyCounts[detectedCurrency.uppercased(), default: 0] += 1 }
                 result.amounts.append(value)
-                let isTotal = lower.range(of: #"\\b(total|amount due|à payer|a payer)\\b"#, options: .regularExpression) != nil
+                let isAmountDue = lower.range(of: #"\\b(amount due|à payer|a payer|due)\\b"#, options: .regularExpression) != nil
+                let isGrandTotal = lower.range(of: #"\\b(grand total|total général|total general)\\b"#, options: .regularExpression) != nil
+                let isTotal = lower.range(of: #"\\b(total)\\b"#, options: .regularExpression) != nil
+                let totalRank = isAmountDue ? 4 : isGrandTotal ? 3 : isTotal ? 2 : 0
                 let isSubtotal = lower.range(of: #"\\b(subtotal|sous[- ]?total)\\b"#, options: .regularExpression) != nil
                 let isTax = lower.range(of: #"\\b(taxe?|tva|vat)\\b"#, options: .regularExpression) != nil
                 let isService = lower.range(of: #"\\b(service|tip|service charge|frais|commission|surcharge|supplement)\\b"#, options: .regularExpression) != nil
-                if isTotal { result.total = value } else if isSubtotal { result.subtotal = value } else if isTax { result.tax = value } else if isService { result.service = value } else { result.itemAmounts.append(value) }
+                let looksNonPrice = lower.range(of: #"\\b(date|table|ticket|receipt|facture|invoice|ref|no\\.?|n[°º])\\b"#, options: .regularExpression) != nil
+                if totalRank > 0 { if totalRank >= totalPriority { result.total = value; totalPriority = totalRank; totalCurrency = detectedCurrency } } else if isSubtotal { result.subtotal = value } else if isTax { result.tax = value } else if isService { result.service = value } else if !looksNonPrice { result.itemAmounts.append(value) }
             }
         }
+        if !totalCurrency.isEmpty { result.currency = totalCurrency.uppercased() } else if let dominant = currencyCounts.max(by: { $0.value < $1.value })?.key { result.currency = dominant }
         return result
     }
 }
 
 enum OCRAssessment: Equatable {
     case coherent, unusual, abusive, undetermined
-    var title: String { switch self { case .coherent: return "Prix cohérent"; case .unusual: return "Prix inhabituel"; case .abusive: return "Prix probablement abusif"; case .undetermined: return "Impossible à déterminer" } }
+    var title: String { switch self { case .coherent: return "Total mathématiquement cohérent"; case .unusual: return "Écart arithmétique à vérifier"; case .abusive: return "Prix potentiellement abusif"; case .undetermined: return "Impossible à déterminer" } }
     var icon: String { switch self { case .coherent: return "checkmark.circle.fill"; case .unusual: return "exclamationmark.triangle.fill"; case .abusive: return "xmark.octagon.fill"; case .undetermined: return "questionmark.circle.fill" } }
 }
 
@@ -93,13 +99,15 @@ struct ScannerView: View {
     @State private var summary = OCRSummary()
     @State private var isAnalyzing = false
     @State private var showingCamera = false
+    @State private var analysisTask: Task<Void, Never>?
+    @State private var analysisGeneration = 0
     var body: some View {
         NavigationStack { ScrollView { VStack(alignment: .leading, spacing: 18) {
             Text("CONTRÔLE INTELLIGENT").font(.caption.weight(.heavy)).tracking(1.2).foregroundStyle(TGColor.muted)
             Text("Scanner avant de payer").font(.largeTitle.bold())
             Text("Cadrez un menu, une addition ou un billet. L’analyse est locale et indicative : aucune conclusion officielle n’est inventée.").foregroundStyle(TGColor.muted)
             Button { showingCamera = true } label: { Label("Prendre une photo", systemImage: "camera.fill").font(.headline).foregroundStyle(.white).frame(maxWidth: .infinity).padding().background(TGColor.teal).clipShape(RoundedRectangle(cornerRadius: 16)) }
-            PhotosPicker(selection: $selectedItem, matching: .images) { Label("Choisir une photo", systemImage: "photo").font(.headline).foregroundStyle(TGColor.ink).frame(maxWidth: .infinity).padding().background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) }.onChange(of: selectedItem) { _, item in Task { await analyze(item) } }
+            PhotosPicker(selection: $selectedItem, matching: .images) { Label("Choisir une photo", systemImage: "photo").font(.headline).foregroundStyle(TGColor.ink).frame(maxWidth: .infinity).padding().background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) }.onChange(of: selectedItem) { _, item in analysisTask?.cancel(); analysisTask = Task { await analyze(item) } }
             if isAnalyzing { ProgressView("Analyse locale du document…").padding(.vertical) }
             if !recognizedLines.isEmpty { VStack(alignment: .leading, spacing: 10) {
                 let assessment = summary.assessment(suspectLines: suspectLines)
@@ -113,6 +121,7 @@ struct ScannerView: View {
     }
     @MainActor private func analyze(_ item: PhotosPickerItem?) async { guard let item else { return }; defer { selectedItem = nil }; do { guard let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { recognizedLines = ["Image impossible à charger."]; return }; await recognize(image) } catch { recognizedLines = ["La photo n’a pas pu être lue. Choisissez une autre image et réessayez."] } }
     @MainActor private func recognize(_ image: UIImage) async {
+        analysisGeneration += 1; let generation = analysisGeneration
         guard let prepared = OCRSupport.prepareImage(image), let cgImage = prepared.cgImage else { recognizedLines = ["Format d’image non pris en charge."]; return }
         isAnalyzing = true; recognizedLines = []; suspectLines = []; summary = OCRSummary()
         let languages = ["fr-FR", "en-US", "it-IT", "es-ES", "de-DE", "pt-PT", "sl-SI", "hr-HR"]
@@ -131,6 +140,7 @@ struct ScannerView: View {
             do { try VNImageRequestHandler(cgImage: cgImage).perform([request]); semaphore.wait() } catch { outputLines = ["L’analyse a échoué. Vérifiez la lumière et réessayez."] }
             return (outputLines, requestSummary)
         }.value
+        guard generation == analysisGeneration, !Task.isCancelled else { return }
         recognizedLines = result.lines.isEmpty ? ["Aucun texte lisible détecté. Rapprochez le document et améliorez la lumière."] : result.lines
         summary = result.summary
         suspectLines = Set(result.lines.filter { line in
@@ -144,12 +154,13 @@ struct ScannerView: View {
 }
 
 extension OCRSupport {
+    private static let ciContext = CIContext()
     static func prepareImage(_ image: UIImage) -> UIImage? {
         let maxWidth: CGFloat = 2200; let scale = min(1, maxWidth / max(image.size.width, 1)); let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
         let renderer = UIGraphicsImageRenderer(size: size); let normalized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
         guard let input = CIImage(image: normalized), let filter = CIFilter(name: "CIColorControls") else { return normalized }
         filter.setValue(input, forKey: kCIInputImageKey); filter.setValue(1.15, forKey: kCIInputContrastKey); filter.setValue(0.05, forKey: kCIInputBrightnessKey)
-        guard let output = filter.outputImage, let cg = CIContext().createCGImage(output, from: output.extent) else { return normalized }
+        guard let output = filter.outputImage, let cg = ciContext.createCGImage(output, from: output.extent) else { return normalized }
         return UIImage(cgImage: cg, scale: normalized.scale, orientation: .up)
     }
 }

@@ -21,7 +21,7 @@ assert "manager.stopMonitoring(for: region)" in source
 assert "risk.reliabilityLabel" in source
 assert "for match in matches" in source
 assert "INCONNUE" in source
-assert "Prix probablement abusif" in source
+assert "Prix potentiellement abusif" in source
 assert "Resultat limité au document" not in native
 assert "sourceSignal" in native
 assert "Aucune donnée de risque ou de prix n’est embarquée" in native

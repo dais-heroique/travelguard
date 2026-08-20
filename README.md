@@ -32,11 +32,18 @@ python3 scripts/generate_native_ios.py
 python3 scripts/rewrite_native_pbx.py
 python3 scripts/validate_xcode_project.py
 python3 scripts/validate_native_quality.py
-unzip -tq TravelGuard-Xcode-FIXED.zip
+python3 scripts/validate_audit24.py
+python3 scripts/validate_audit25.py
+python3 scripts/validate_audit26.py
+python3 scripts/validate_audit27.py
+python3 scripts/validate_audit28.py
+python3 scripts/validate_feed_contract.py
+python3 scripts/validate_ocr_cases.py
+python3 scripts/validate_final_hardening.py
 ```
 
-Ces contrôles vérifient la structure PBX, les permissions, le Bundle ID, les règles anti-données fictives, l’OCR structuré, le filtrage GPS et l’intégrité de l’archive. La compilation et le test tactile final restent à exécuter sur macOS avec Xcode et un iPhone, comme décrit dans `NATIVE_TEST_MATRIX.md`.
+Ces contrôles vérifient la structure PBX, les permissions, le Bundle ID, les règles anti-données fictives, l’OCR structuré, le filtrage GPS, le feed régional, le cache et les protections réseau. L’archive ZIP n’est volontairement pas versionnée : le projet Xcode canonique est la source, et une archive de distribution doit être produite depuis Xcode ou une Release GitHub. La compilation et le test tactile final restent à exécuter sur macOS avec Xcode et un iPhone, comme décrit dans `NATIVE_TEST_MATRIX.md`.
 
 ## Dossiers à ne pas utiliser pour tester l’app native
 
-Les dossiers `app/`, `components/`, `hooks/` et les autres fichiers Expo/Web sont conservés pour l’historique du prototype. Ils ne sont pas le chemin de lancement recommandé. Pour l’iPhone, utilisez exclusivement `native-package/TravelGuard.xcodeproj`.
+Les dossiers `app/`, `components/`, `hooks/` et les autres fichiers Expo/Web sont conservés pour l’historique du prototype. Ils ne sont pas le chemin de lancement recommandé. Toute correction de production doit être appliquée à `native-package/` et régénérée via `scripts/generate_native_ios.py`; la pile Expo ne constitue pas une seconde application à publier. Pour l’iPhone, utilisez exclusivement `native-package/TravelGuard.xcodeproj`.
