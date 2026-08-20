@@ -11,6 +11,7 @@
 <key>LSRequiresIPhoneOS</key><true/>
 <key>NSCameraUsageDescription</key><string>TravelGuard utilise la caméra pour scanner les menus, additions et billets.</string>
 <key>NSLocationWhenInUseUsageDescription</key><string>TravelGuard utilise votre position pour afficher les risques et tarifs autour de vous.</string>
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key><string>TravelGuard peut surveiller les zones signalées en arrière-plan uniquement si vous activez explicitement les alertes de proximité.</string>
 <key>NSPhotoLibraryUsageDescription</key><string>TravelGuard utilise vos photos pour analyser un menu ou un billet.</string>
 <key>UILaunchScreen</key><dict><key>UIColorName</key><string>LaunchBackground</string></dict>
 </dict></plist>

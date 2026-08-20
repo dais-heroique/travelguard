@@ -174,3 +174,13 @@
 - [x] Renforcer les tests déterministes du natif
 - [x] Améliorer les parcours et la robustesse UI
 - [x] Régénérer, publier et sauvegarder le paquet final
+
+# Corrections Pasted_content_10
+- [x] Empêcher le premier recentrage automatique après interaction utilisateur sur la carte
+- [x] Vérifier et corriger partout la prise en compte de la précision GPS
+- [x] Vérifier l’absence de données de démonstration présentées comme réelles
+- [x] Auditer le pipeline OCR, extraction des prix et comparaison locale
+- [x] Vérifier que les alertes géolocalisées restent explicitement non-production sans source fiable
+- [x] Corriger le formatage des distances en kilomètres
+- [x] Distinguer absence de données et absence de risque dans tous les écrans
+- [x] Régénérer, tester et publier la nouvelle archive native

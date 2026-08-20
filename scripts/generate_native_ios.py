@@ -85,23 +85,12 @@ struct SOSPhrase: Identifiable, Hashable {
 
 private let localReferenceDate = Date(timeIntervalSince1970: 1754006400)
 
-let demoRisks = [
-    RiskPlace(id: "taxi-1", name: "Taxi sans compteur", category: "Taxi", score: 31, summary: "Refus fréquent du compteur et tarif annoncé après la course.", latitude: 48.8584, longitude: 2.2945, signals: ["Pas de compteur visible", "Prix variable selon le client"], source: "Donnée locale de démonstration", updatedAt: localReferenceDate, reportCount: 12),
-    RiskPlace(id: "exchange-1", name: "Change très défavorable", category: "Change", score: 44, summary: "Taux affiché sans frais réels clairement visibles.", latitude: 48.8606, longitude: 2.3376, signals: ["Commission peu lisible", "Écart au taux de référence"], source: "Donnée locale de démonstration", updatedAt: localReferenceDate, reportCount: 8),
-    RiskPlace(id: "restaurant-1", name: "Menu touristique", category: "Restaurant", score: 58, summary: "Suppléments signalés sur les terrasses et accompagnements.", latitude: 48.8530, longitude: 2.3499, signals: ["Menu sans prix détaillés", "Service ajouté automatiquement"], source: "Donnée locale de démonstration", updatedAt: localReferenceDate, reportCount: 5)
-]
-
-// Données de démonstration conservées uniquement pour les tests visuels ; jamais affichées comme locales.
+// Aucune donnée de risque ou de prix n’est embarquée sans source autorisée et traçable.
+// Les intégrations locales doivent fournir coordonnées, date, source et score avant affichage.
 let trustedRisks: [RiskPlace] = []
 
-let samplePrices = [
-    FairPrice(id: "coffee", label: "Café", value: "2,50 €", reference: "Repère local indicatif", city: "Paris", source: "Référence locale de démonstration", updatedAt: localReferenceDate),
-    FairPrice(id: "taxi", label: "Course taxi", value: "12–18 €", reference: "Trajet urbain standard", city: "Paris", source: "Référence locale de démonstration", updatedAt: localReferenceDate),
-    FairPrice(id: "museum", label: "Billet attraction", value: "18 €", reference: "Tarif officiel indicatif", city: "Paris", source: "Référence locale de démonstration", updatedAt: localReferenceDate)
-]
-
 func prices(for city: String) -> [FairPrice] {
-    samplePrices.filter { $0.city.localizedCaseInsensitiveCompare(city) == .orderedSame && !$0.source.contains("démonstration") }
+    []
 }
 
 struct OfficialSource: Identifiable, Hashable {
@@ -196,10 +185,17 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
             trustedRisks.forEach { manager.stopMonitoring(for: CLCircularRegion(center: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), radius: 250, identifier: $0.id)) }
             return
         }
+        if authorization == .authorizedWhenInUse { manager.requestAlwaysAuthorization() }
         Task {
             let granted = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
-            guard granted == true, hasPermission else { return }
-            await MainActor.run { self.monitorRiskRegions() }
+            guard granted == true else { return }
+            await MainActor.run {
+                guard self.authorization == .authorizedAlways else {
+                    self.errorMessage = "Les alertes en arrière-plan nécessitent l’autorisation Toujours."
+                    return
+                }
+                self.monitorRiskRegions()
+            }
         }
     }
 
@@ -208,7 +204,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
             Task { @MainActor in
                 guard let self else { return }
                 self.notificationPermission = settings.authorizationStatus
-                if settings.authorizationStatus == .authorized && self.hasPermission { self.monitorRiskRegions() }
+                if settings.authorizationStatus == .authorized && self.authorization == .authorizedAlways { self.monitorRiskRegions() }
             }
         }
     }
@@ -444,7 +440,7 @@ struct HomeView: View {
                         HStack(spacing: 14) { Label(store.location.locationStatus, systemImage: "location.fill"); Label(store.network.isOnline ? "En ligne" : "Hors ligne", systemImage: store.network.isOnline ? "wifi" : "wifi.slash") }.font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.88))
                         Text(store.network.isChecking ? "Vérification de la connexion…" : store.network.isOnline ? "Données locales et alertes prêtes" : "Données locales disponibles sans réseau").font(.subheadline).foregroundStyle(.white.opacity(0.86))
                         Divider().overlay(.white.opacity(0.25))
-                        Text(store.location.coordinate == nil ? "Aucun risque local sans position fiable" : (store.location.accuracy ?? 999) > 100 ? "Position trop imprécise pour calculer les distances" : nearbyRisks.isEmpty ? "Aucune donnée de risque connue dans un rayon de 10 km" : "\(nearbyRisks.count) signaux de démonstration dans un rayon de 10 km").font(.subheadline.bold()).foregroundStyle(.white).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(store.location.coordinate == nil ? "Aucun risque local sans position fiable" : (store.location.accuracy ?? 999) > 100 ? "Position trop imprécise pour calculer les distances" : nearbyRisks.isEmpty ? "Aucune donnée de risque connue dans un rayon de 10 km" : "\(nearbyRisks.count) signaux géolocalisés sourcés dans un rayon de 10 km").font(.subheadline.bold()).foregroundStyle(.white).frame(maxWidth: .infinity, alignment: .leading)
                         ForEach(nearbyRisks.prefix(2)) { risk in HStack(spacing: 9) { Image(systemName: risk.category == "Taxi" ? "car.fill" : risk.category == "Change" ? "banknote.fill" : "fork.knife").font(.caption.bold()).foregroundStyle(.white).frame(width: 26, height: 26).background(TGColor.coral).clipShape(Circle()); VStack(alignment: .leading, spacing: 2) { Text(risk.category.uppercased()).font(.caption2.bold()).foregroundStyle(.white.opacity(0.72)); Text(risk.name).font(.caption.weight(.semibold)).foregroundStyle(.white) }; Spacer(); Text(risk.formattedDistance(from: store.location.coordinate)).font(.caption.bold()).foregroundStyle(.white.opacity(0.9)) } }
                     }.tgCard().background(TGColor.teal).clipShape(RoundedRectangle(cornerRadius: 22))
                     Text("Besoin d’un contrôle rapide ?").font(.title3.bold()).foregroundStyle(TGColor.ink)
@@ -473,6 +469,7 @@ struct RiskMapView: View {
     @State private var selected: RiskPlace?
     @State private var showFullScreen = false
     @State private var hasInitiallyCentered = false
+    @State private var hasUserInteractedWithMap = false
 
     private var displayedRisks: [RiskPlace] {
         guard let coordinate = store.location.coordinate, (store.location.accuracy ?? 999) <= 100 else { return [] }
@@ -483,14 +480,16 @@ struct RiskMapView: View {
         guard let coordinate = store.location.coordinate else { store.location.requestPermission(); return }
         withAnimation { region = MKCoordinateRegion(center: coordinate, span: MKCoordinateSpan(latitudeDelta: 0.035, longitudeDelta: 0.035)) }
         hasInitiallyCentered = true
+        hasUserInteractedWithMap = true
     }
 
     private func centerInitiallyIfNeeded() {
-        guard !hasInitiallyCentered, store.location.coordinate != nil else { return }
+        guard !hasInitiallyCentered, !hasUserInteractedWithMap, store.location.coordinate != nil else { return }
         recenter()
     }
 
     private func zoom(by factor: Double) {
+        hasUserInteractedWithMap = true
         let nextLatitude = min(max(region.span.latitudeDelta * factor, 0.001), 2.0)
         let nextLongitude = min(max(region.span.longitudeDelta * factor, 0.001), 2.0)
         withAnimation { region.span = MKCoordinateSpan(latitudeDelta: nextLatitude, longitudeDelta: nextLongitude) }
@@ -500,7 +499,7 @@ struct RiskMapView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 HStack { VStack(alignment: .leading) { Text("ZONE DE VIGILANCE").font(.caption.weight(.heavy)).tracking(1.2).foregroundStyle(TGColor.muted); Text("Carte des risques").font(.title.bold()) }; Spacer(); Label(store.location.city, systemImage: "location.fill").font(.caption.bold()).padding(9).background(.white).clipShape(Capsule()) }.padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 12)
-                Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: displayedRisks) { risk in MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) { Button { selected = risk } label: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(TGColor.coral).padding(9).background(.white).clipShape(Circle()).shadow(radius: 3) } } }.frame(height: 260).clipShape(RoundedRectangle(cornerRadius: 22)).padding(.horizontal, 20).overlay(alignment: .topLeading) { if !store.location.hasPermission || store.location.coordinate == nil || (store.location.accuracy ?? 999) > 100 { VStack(alignment: .leading, spacing: 7) { Label(store.location.locationStatus, systemImage: "location.slash").font(.caption.bold()); if let error = store.location.errorMessage { Text(error).font(.caption2).lineLimit(2) }; Button("Activer ma position") { store.location.requestPermission() }.font(.caption.bold()).buttonStyle(.borderedProminent).tint(TGColor.teal) }.padding(12).background(.thinMaterial).clipShape(RoundedRectangle(cornerRadius: 14)).padding(10) } }.overlay(alignment: .bottomTrailing) { HStack(spacing: 8) { Button { recenter() } label: { Image(systemName: "location.fill").padding(10).background(.white).clipShape(Circle()) }; Button { showFullScreen = true } label: { Image(systemName: "arrow.up.left.and.arrow.down.right").padding(10).background(.white).clipShape(Circle()) } }.padding(12) }
+                Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: displayedRisks) { risk in MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) { Button { selected = risk } label: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(TGColor.coral).padding(9).background(.white).clipShape(Circle()).shadow(radius: 3) } } }.simultaneousGesture(DragGesture(minimumDistance: 4).onChanged { _ in hasUserInteractedWithMap = true }).simultaneousGesture(MagnificationGesture().onChanged { _ in hasUserInteractedWithMap = true }).frame(height: 260).clipShape(RoundedRectangle(cornerRadius: 22)).padding(.horizontal, 20).overlay(alignment: .topLeading) { if !store.location.hasPermission || store.location.coordinate == nil || (store.location.accuracy ?? 999) > 100 { VStack(alignment: .leading, spacing: 7) { Label(store.location.locationStatus, systemImage: "location.slash").font(.caption.bold()); if let error = store.location.errorMessage { Text(error).font(.caption2).lineLimit(2) }; Button("Activer ma position") { store.location.requestPermission() }.font(.caption.bold()).buttonStyle(.borderedProminent).tint(TGColor.teal) }.padding(12).background(.thinMaterial).clipShape(RoundedRectangle(cornerRadius: 14)).padding(10) } }.overlay(alignment: .bottomTrailing) { HStack(spacing: 8) { Button { recenter() } label: { Image(systemName: "location.fill").padding(10).background(.white).clipShape(Circle()) }; Button { showFullScreen = true } label: { Image(systemName: "arrow.up.left.and.arrow.down.right").padding(10).background(.white).clipShape(Circle()) } }.padding(12) }
                 HStack(spacing: 8) { Button { zoom(by: 0.55) } label: { Image(systemName: "plus").frame(width: 34, height: 34) }; Button { zoom(by: 1.8) } label: { Image(systemName: "minus").frame(width: 34, height: 34) } }.font(.headline).foregroundStyle(TGColor.ink).background(.ultraThinMaterial).clipShape(Capsule()).padding(.leading, 30).padding(.top, -52)
                 if store.location.coordinate == nil || (store.location.accuracy ?? 999) > 100 { Text(store.location.permissionDenied ? "Autorisez la localisation dans Réglages pour afficher les risques réellement proches de vous." : "La précision GPS est insuffisante pour afficher des distances fiables. Déplacez-vous à ciel ouvert puis réessayez.").font(.footnote).foregroundStyle(TGColor.muted).padding(.horizontal, 20).padding(.top, 14) }
                 ScrollView { VStack(alignment: .leading, spacing: 10) { Text("Signaux à proximité").font(.title3.bold()).padding(.top, 16); if displayedRisks.isEmpty { Text("Aucune donnée géolocalisée autorisée n’est disponible dans un rayon de 10 km. Les sources officielles générales restent consultables dans Sécurité.").font(.subheadline).foregroundStyle(TGColor.muted).tgCard() }; ForEach(displayedRisks) { risk in Button { selected = risk } label: { HStack { VStack(spacing: 0) { Text("\(risk.confidenceScore)").font(.headline.bold()); Text("indicatif").font(.caption2) }.foregroundStyle(TGColor.coral).frame(width: 48, height: 48).background(TGColor.coral.opacity(0.1)).clipShape(Circle()); VStack(alignment: .leading) { Text(risk.name).font(.subheadline.bold()); Text("\(risk.category) · \(risk.formattedDistance(from: store.location.coordinate))").font(.caption.bold()).foregroundStyle(TGColor.teal); Text(risk.summary).font(.caption).foregroundStyle(TGColor.muted).lineLimit(2) }; Spacer(); Image(systemName: "chevron.right").foregroundStyle(TGColor.muted) }.foregroundStyle(TGColor.ink).padding(12).background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) } } }.padding(.horizontal, 20).padding(.bottom, 24) }
@@ -692,6 +691,7 @@ struct SafetyView: View {
 <key>LSRequiresIPhoneOS</key><true/>
 <key>NSCameraUsageDescription</key><string>TravelGuard utilise la caméra pour scanner les menus, additions et billets.</string>
 <key>NSLocationWhenInUseUsageDescription</key><string>TravelGuard utilise votre position pour afficher les risques et tarifs autour de vous.</string>
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key><string>TravelGuard peut surveiller les zones signalées en arrière-plan uniquement si vous activez explicitement les alertes de proximité.</string>
 <key>NSPhotoLibraryUsageDescription</key><string>TravelGuard utilise vos photos pour analyser un menu ou un billet.</string>
 <key>UILaunchScreen</key><dict><key>UIColorName</key><string>LaunchBackground</string></dict>
 </dict></plist>
@@ -764,5 +764,5 @@ scheme_dir.mkdir(parents=True, exist_ok=True)
   <ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/>
 </Scheme>
 ''')
-(ROOT / 'README.md').write_text('''# TravelGuard Native iOS\n\nNative SwiftUI rebuild with no Expo, Metro, Node, or JavaScript runtime dependency. Open `TravelGuard.xcodeproj` on macOS with Xcode.\n\nFeatures: onboarding, location permission, dynamic city, local risk map, Vision OCR from camera/photo, fair-price references, automatic offline status, SOS phrases, and local persistence.\n''')
+(ROOT / 'README.md').write_text('''# TravelGuard iOS\n\nTravelGuard est une application iOS native SwiftUI. Le projet canonique est `native-package/TravelGuard.xcodeproj` et ne dépend ni d’Expo, ni de Metro, ni de Node, ni de CocoaPods à l’exécution.\n\n## Ouvrir sur Mac\n\n```bash\ngit clone https://github.com/dais-heroique/travelguard.git\ncd travelguard\nopen native-package/TravelGuard.xcodeproj\n```\n\nDans Xcode, sélectionnez votre Team, votre iPhone et le schéma `TravelGuard` en configuration Release. La compilation et le test appareil final doivent être exécutés sur macOS avec Xcode.\n\n## Fonctionnalités natives\n\nLe paquet comprend l’onboarding, la demande de localisation, le suivi GPS avec filtrage de précision, MapKit avec zoom tactile, le scanner Vision OCR depuis caméra ou Photos, l’extraction structurée des montants, le mode hors ligne, les phrases SOS et la persistance locale.\n\nAucun risque géolocalisé ni tarif n’est affiché comme officiel sans source autorisée et traçable. Lorsque les sources ne sont pas disponibles, l’interface affiche explicitement l’absence de données et propose des liens institutionnels généraux. Les alertes en arrière-plan nécessitent une source de risque fiable, l’autorisation iOS `Toujours` et les notifications ; elles restent désactivées tant qu’aucune donnée sourcée n’est intégrée.\n\n## Vérifications reproductibles\n\n```bash\npython3 -m py_compile scripts/*.py\npython3 scripts/generate_native_ios.py\npython3 scripts/rewrite_native_pbx.py\npython3 scripts/validate_xcode_project.py\npython3 scripts/validate_native_quality.py\nunzip -tq TravelGuard-Xcode-FIXED.zip\n```\n\nVoir `NATIVE_TEST_MATRIX.md` pour la matrice Mac/iPhone. Les dossiers Expo/Web sont historiques ; pour l’application iPhone, utilisez exclusivement `native-package/TravelGuard.xcodeproj`.\n''')
 print(f'Generated {ROOT}')

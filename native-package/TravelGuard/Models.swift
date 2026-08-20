@@ -58,23 +58,12 @@ struct SOSPhrase: Identifiable, Hashable {
 
 private let localReferenceDate = Date(timeIntervalSince1970: 1754006400)
 
-let demoRisks = [
-    RiskPlace(id: "taxi-1", name: "Taxi sans compteur", category: "Taxi", score: 31, summary: "Refus fréquent du compteur et tarif annoncé après la course.", latitude: 48.8584, longitude: 2.2945, signals: ["Pas de compteur visible", "Prix variable selon le client"], source: "Donnée locale de démonstration", updatedAt: localReferenceDate, reportCount: 12),
-    RiskPlace(id: "exchange-1", name: "Change très défavorable", category: "Change", score: 44, summary: "Taux affiché sans frais réels clairement visibles.", latitude: 48.8606, longitude: 2.3376, signals: ["Commission peu lisible", "Écart au taux de référence"], source: "Donnée locale de démonstration", updatedAt: localReferenceDate, reportCount: 8),
-    RiskPlace(id: "restaurant-1", name: "Menu touristique", category: "Restaurant", score: 58, summary: "Suppléments signalés sur les terrasses et accompagnements.", latitude: 48.8530, longitude: 2.3499, signals: ["Menu sans prix détaillés", "Service ajouté automatiquement"], source: "Donnée locale de démonstration", updatedAt: localReferenceDate, reportCount: 5)
-]
-
-// Données de démonstration conservées uniquement pour les tests visuels ; jamais affichées comme locales.
+// Aucune donnée de risque ou de prix n’est embarquée sans source autorisée et traçable.
+// Les intégrations locales doivent fournir coordonnées, date, source et score avant affichage.
 let trustedRisks: [RiskPlace] = []
 
-let samplePrices = [
-    FairPrice(id: "coffee", label: "Café", value: "2,50 €", reference: "Repère local indicatif", city: "Paris", source: "Référence locale de démonstration", updatedAt: localReferenceDate),
-    FairPrice(id: "taxi", label: "Course taxi", value: "12–18 €", reference: "Trajet urbain standard", city: "Paris", source: "Référence locale de démonstration", updatedAt: localReferenceDate),
-    FairPrice(id: "museum", label: "Billet attraction", value: "18 €", reference: "Tarif officiel indicatif", city: "Paris", source: "Référence locale de démonstration", updatedAt: localReferenceDate)
-]
-
 func prices(for city: String) -> [FairPrice] {
-    samplePrices.filter { $0.city.localizedCaseInsensitiveCompare(city) == .orderedSame && !$0.source.contains("démonstration") }
+    []
 }
 
 struct OfficialSource: Identifiable, Hashable {

@@ -20,11 +20,16 @@ for path in required:
 all_swift = "\n".join(path.read_text(encoding="utf-8") for path in SRC.glob("*.swift"))
 assert "let trustedRisks: [RiskPlace] = []" in all_swift
 assert "sampleRisks" not in all_swift
+assert "demoRisks" not in all_swift
+assert "samplePrices" not in all_swift
+assert "Donnée locale de démonstration" not in all_swift
 assert "OfficialSource" in all_swift
 assert "recognitionLanguages" in all_swift
 assert "calculatedTotal" in all_swift
 assert "formattedDistance" in all_swift
 assert "horizontalAccuracy <= 100" in all_swift
+assert "hasUserInteractedWithMap" in all_swift
+assert "!hasUserInteractedWithMap" in all_swift
 assert "UIApplication.openSettingsURLString" in all_swift
 assert "Aucune référence officielle" in all_swift
 assert re.search(r"https://travel\.state\.gov/.+scams", all_swift)

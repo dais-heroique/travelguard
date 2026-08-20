@@ -69,10 +69,17 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
             trustedRisks.forEach { manager.stopMonitoring(for: CLCircularRegion(center: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), radius: 250, identifier: $0.id)) }
             return
         }
+        if authorization == .authorizedWhenInUse { manager.requestAlwaysAuthorization() }
         Task {
             let granted = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
-            guard granted == true, hasPermission else { return }
-            await MainActor.run { self.monitorRiskRegions() }
+            guard granted == true else { return }
+            await MainActor.run {
+                guard self.authorization == .authorizedAlways else {
+                    self.errorMessage = "Les alertes en arrière-plan nécessitent l’autorisation Toujours."
+                    return
+                }
+                self.monitorRiskRegions()
+            }
         }
     }
 
@@ -81,7 +88,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
             Task { @MainActor in
                 guard let self else { return }
                 self.notificationPermission = settings.authorizationStatus
-                if settings.authorizationStatus == .authorized && self.hasPermission { self.monitorRiskRegions() }
+                if settings.authorizationStatus == .authorized && self.authorization == .authorizedAlways { self.monitorRiskRegions() }
             }
         }
     }
