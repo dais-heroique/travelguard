@@ -206,3 +206,17 @@
 - [x] Redimensionner les photos avant OCR
 - [x] Vérifier la disponibilité de la caméra
 - [x] Régénérer, valider et publier la nouvelle version
+
+# Corrections Pasted_content_12
+- [x] Séparer l’interaction utilisateur du centrage programmatique
+- [x] Remplacer les gestes SwiftUI concurrents par une détection caméra MapKit adaptée
+- [x] Déplacer les contrôles de zoom dans l’overlay de la carte
+- [x] Ajouter un recentrage cohérent en plein écran
+- [x] Afficher les risques même avec GPS approximatif et dégrader seulement les distances
+- [x] Remplacer le seuil GPS unique par précis, approximatif et imprécis
+- [x] Supprimer le centrage visuel par défaut sur Paris sans position
+- [x] Afficher une ville et un état de localisation explicites
+- [x] Séparer localisation, chargement, absence de risque, erreur et base vide
+- [x] Préparer un calcul de distances en une seule passe
+- [x] Limiter le zoom maximal à un rayon local utile
+- [x] Régénérer, valider et publier la version corrigée

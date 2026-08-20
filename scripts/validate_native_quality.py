@@ -35,6 +35,11 @@ assert "requestAlwaysAuthorization" in all_swift
 assert ".prefix(20)" in all_swift
 assert "canOpenURL" in all_swift
 assert "countryCode" in all_swift
+assert "onMapCameraChange" in all_swift
+assert "simultaneousGesture" not in all_swift
+assert "padding(.top, -52)" not in all_swift
+assert "latitude: 0, longitude: 0" in all_swift
+assert "> 200" in all_swift
 assert "Aucune référence officielle" in all_swift
 assert re.search(r"https://travel\.state\.gov/.+scams", all_swift)
 
