@@ -184,3 +184,8 @@
 - [x] Corriger le formatage des distances en kilomètres
 - [x] Distinguer absence de données et absence de risque dans tous les écrans
 - [x] Régénérer, tester et publier la nouvelle archive native
+
+# Synchronisation publique finale
+- [x] Vérifier la visibilité publique et l’état de la branche principale
+- [x] Synchroniser la dernière version validée vers GitHub
+- [x] Contrôler le commit et les fichiers clés sur le dépôt distant
