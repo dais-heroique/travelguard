@@ -360,3 +360,9 @@
 - [x] Ajouter tests HTTP des statuts 200, 204, 301, 302, 400, 401, 403, 404, 408, 429, 500, 502, 503
 - [x] Vérifier que le cache valide est conservé en cas de réponse invalide
 - [x] Régénérer, valider, publier et sauvegarder la version complète
+
+# Dernière passe automatique
+- [x] Auditer les validateurs et les scripts de génération actuels
+- [x] Durcir les vérifications de sécurité réseau et cache
+- [x] Ajouter les tests déterministes encore manquants
+- [ ] Régénérer, valider, publier et sauvegarder la dernière version

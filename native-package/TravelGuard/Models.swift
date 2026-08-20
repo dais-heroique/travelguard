@@ -100,13 +100,13 @@ struct RiskPlace: Identifiable, Hashable, Codable {
 
     init(id: String, name: String, category: String, score: Int, summary: String, latitude: Double, longitude: Double, signals: [String] = [], source: String, updatedAt: Date, reportCount: Int = 0, sourceType: SourceTrust = .unknown, evidence: [RiskEvidence] = [], alertRadius: CLLocationDistance = 250, revokedAt: Date? = nil, sourceRecord: VerifiedSource? = nil, locationPrecision: LocationPrecision = .point) { self.id = id; self.name = name; self.category = category; self.score = score; self.summary = summary; self.latitude = latitude; self.longitude = longitude; self.signals = signals; self.source = source; self.updatedAt = updatedAt; self.reportCount = reportCount; self.sourceType = sourceType; self.evidence = evidence; self.alertRadius = alertRadius; self.revokedAt = revokedAt; self.sourceRecord = sourceRecord; self.locationPrecision = locationPrecision }
 
-    enum CodingKeys: String, CodingKey { case id, name, category, score, summary, latitude, longitude, signals, source, updatedAt, reportCount, sourceType, evidence, alertRadius, revokedAt, sourceRecord, locationPrecision }
+    enum CodingKeys: String, CodingKey { case id, name, category, score, summary, latitude, longitude, signals, source, updatedAt, reportCount, sourceType, evidence, alertRadius, revokedAt, sourceRecord, locationPrecision, reliabilityIndex, confidenceScore }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id); name = try c.decode(String.self, forKey: .name); category = try c.decode(String.self, forKey: .category)
         score = try c.decode(Int.self, forKey: .score); summary = try c.decode(String.self, forKey: .summary); latitude = try c.decode(Double.self, forKey: .latitude); longitude = try c.decode(Double.self, forKey: .longitude)
         signals = try c.decodeIfPresent([String].self, forKey: .signals) ?? []; source = try c.decode(String.self, forKey: .source); updatedAt = try c.decode(Date.self, forKey: .updatedAt); reportCount = try c.decodeIfPresent(Int.self, forKey: .reportCount) ?? 0
-        sourceType = try c.decodeIfPresent(SourceTrust.self, forKey: .sourceType) ?? .unknown; evidence = try c.decodeIfPresent([RiskEvidence].self, forKey: .evidence) ?? []; alertRadius = try c.decodeIfPresent(CLLocationDistance.self, forKey: .alertRadius) ?? 250; revokedAt = try c.decodeIfPresent(Date.self, forKey: .revokedAt); sourceRecord = try c.decodeIfPresent(VerifiedSource.self, forKey: .sourceRecord); locationPrecision = try c.decodeIfPresent(LocationPrecision.self, forKey: .locationPrecision) ?? .point
+        sourceType = try c.decodeIfPresent(SourceTrust.self, forKey: .sourceType) ?? .unknown; evidence = try c.decodeIfPresent([RiskEvidence].self, forKey: .evidence) ?? []; alertRadius = try c.decodeIfPresent(CLLocationDistance.self, forKey: .alertRadius) ?? 250; revokedAt = try c.decodeIfPresent(Date.self, forKey: .revokedAt); sourceRecord = try c.decodeIfPresent(VerifiedSource.self, forKey: .sourceRecord); locationPrecision = try c.decodeIfPresent(LocationPrecision.self, forKey: .locationPrecision) ?? .point; let _ = try c.decodeIfPresent(Int.self, forKey: .reliabilityIndex) ?? c.decodeIfPresent(Int.self, forKey: .confidenceScore)
     }
 
     func distance(from coordinate: CLLocationCoordinate2D?) -> CLLocationDistance? {
@@ -150,7 +150,7 @@ struct RiskCacheEnvelope: Codable {
     let risks: [RiskPlace]
 }
 
-struct RiskFeedEnvelope: Codable { let schemaVersion: Int; let fetchedAt: Date; let risks: [RiskPlace] }
+struct RiskFeedEnvelope: Codable { let schemaVersion: Int; let fetchedAt: Date; let updatedAt: Date?; let risks: [RiskPlace] }
 
 struct FairPrice: Identifiable, Hashable {
     let id: String
@@ -209,7 +209,7 @@ struct RemoteRiskRepository: RiskRepository {
     private let maxRisks = 5000
     func fetchRisks() async throws -> [RiskPlace] { try await fetchRisks(in: RiskBoundingBox(west: -180, south: -90, east: 180, north: 90, page: 1)) }
     func fetchRisks(in bbox: RiskBoundingBox) async throws -> [RiskPlace] {
-        guard let endpoint, endpoint.scheme?.lowercased() == "https", let host = endpoint.host, let allowedHost, !allowedHost.isEmpty, host == allowedHost, !host.hasPrefix("localhost"), !host.hasPrefix("127."), !host.hasPrefix("10."), !host.hasPrefix("192.168.") else { throw RiskRepositoryError.unavailable }
+        guard let endpoint, endpoint.scheme?.lowercased() == "https", let host = endpoint.host, let allowedHost, !allowedHost.isEmpty, host == allowedHost, !host.hasPrefix("localhost"), !host.hasPrefix("127."), !host.hasPrefix("10."), !host.hasPrefix("192.168."), !host.hasPrefix("169.254."), host != "::1", !host.hasPrefix("fc"), !host.hasPrefix("fd") else { throw RiskRepositoryError.unavailable }
         var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)!; components.queryItems = [URLQueryItem(name: "west", value: String(bbox.west)), URLQueryItem(name: "south", value: String(bbox.south)), URLQueryItem(name: "east", value: String(bbox.east)), URLQueryItem(name: "north", value: String(bbox.north)), URLQueryItem(name: "page", value: String(bbox.page))]
         guard let regionalEndpoint = components.url else { throw RiskRepositoryError.unavailable }
         var lastError: Error?
@@ -229,7 +229,7 @@ struct RemoteRiskRepository: RiskRepository {
                 if let etag = http.value(forHTTPHeaderField: "ETag") { UserDefaults.standard.set(etag, forKey: "travelguard.feed.etag") }
                 let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
                 let feed = try decoder.decode(RiskFeedEnvelope.self, from: data)
-                guard feed.schemaVersion == 1, feed.fetchedAt <= Date().addingTimeInterval(300), feed.risks.count <= maxRisks else { throw RiskRepositoryError.invalidResponse }
+                guard feed.schemaVersion == 1, feed.fetchedAt <= Date().addingTimeInterval(300), feed.risks.count <= maxRisks, feed.risks.allSatisfy({ risk in feed.updatedAt.map { risk.updatedAt >= $0.addingTimeInterval(-300) } ?? true }) else { throw RiskRepositoryError.invalidResponse }
                 let validated = RiskPlace.validated(feed.risks)
                 guard validated.count == feed.risks.count else { throw RiskRepositoryError.invalidResponse }
                 return validated

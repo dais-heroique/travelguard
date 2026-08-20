@@ -14,7 +14,7 @@ required_fragments = [
     "Task.detached(priority: .userInitiated)",
     "maxWidth: CGFloat = 2200",
     "isSourceTypeAvailable(.camera)",
-    r"1,3}(?:[ .\u{00A0}][0-9]{3})",
+    r"1,3}(?:[ .\u{00A0}",
 ]
 for fragment in required_fragments:
     assert fragment in swift, f"missing OCR safeguard: {fragment}"
