@@ -20,7 +20,22 @@ Dans Xcode, sélectionnez votre Team, votre iPhone et le schéma **TravelGuard**
 
 Le projet natif conserve localement l’onboarding, la localisation continue avec précision, la carte MapKit avec zoom par pincement et contrôles, l’OCR Vision multilingue avec lecture structurée des montants, les alertes de régions iOS, les références locales hors ligne et le mode SOS.
 
-Les risques et références de prix actuellement embarqués sont des **données locales de démonstration**. Ils ne constituent pas une source officielle de sécurité ou de tarification. Consultez `AUDIT_RESOLUTION.md` pour les corrections effectuées et les limites connues.
+TravelGuard n’affiche pas de risques géolocalisés ni de tarifs comme s’ils étaient officiels lorsqu’aucune source autorisée n’est disponible. Les références générales sont signalées comme telles et les liens vers les sources institutionnelles sont accessibles depuis l’écran Sécurité. Consultez `AUDIT_RESOLUTION.md` pour les corrections effectuées et les limites connues.
+
+## Vérifications automatisées
+
+Depuis la racine du dépôt, les contrôles reproductibles peuvent être lancés ainsi :
+
+```bash
+python3 -m py_compile scripts/*.py
+python3 scripts/generate_native_ios.py
+python3 scripts/rewrite_native_pbx.py
+python3 scripts/validate_xcode_project.py
+python3 scripts/validate_native_quality.py
+unzip -tq TravelGuard-Xcode-FIXED.zip
+```
+
+Ces contrôles vérifient la structure PBX, les permissions, le Bundle ID, les règles anti-données fictives, l’OCR structuré, le filtrage GPS et l’intégrité de l’archive. La compilation et le test tactile final restent à exécuter sur macOS avec Xcode et un iPhone, comme décrit dans `NATIVE_TEST_MATRIX.md`.
 
 ## Dossiers à ne pas utiliser pour tester l’app native
 

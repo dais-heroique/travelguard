@@ -167,3 +167,10 @@
 - [x] Renforcer et tester l’OCR structuré sur menus et additions multilingues
 - [x] Ajouter les validations déterministes des permissions, GPS, réseau, carte et scanner
 - [ ] Valider le paquet natif final sur macOS/Xcode et iPhone lorsque possible
+
+# Poursuite automatique
+- [x] Auditer le dernier état après le checkpoint f8b363a
+- [x] Ajouter les intégrations sans clé et les états hors ligne robustes
+- [x] Renforcer les tests déterministes du natif
+- [x] Améliorer les parcours et la robustesse UI
+- [x] Régénérer, publier et sauvegarder le paquet final
