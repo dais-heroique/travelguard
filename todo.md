@@ -250,3 +250,8 @@
 - [x] Libérer NetworkMonitor avec deinit
 - [x] Afficher explicitement dernière position connue versus position actuelle
 - [x] Régénérer, valider et publier la version corrigée
+
+# Vérification Pasted_content_15
+- [x] Comparer chaque point à la version native actuelle
+- [x] Corriger tout écart résiduel réellement présent
+- [x] Régénérer, valider et publier si nécessaire
