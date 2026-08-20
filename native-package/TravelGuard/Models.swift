@@ -186,8 +186,11 @@ struct OfficialSource: Identifiable, Hashable {
     let url: String
 }
 
+struct RiskBoundingBox: Codable, Hashable { let west: Double; let south: Double; let east: Double; let north: Double; let page: Int }
+
 protocol RiskRepository {
     func fetchRisks() async throws -> [RiskPlace]
+    func fetchRisks(in bbox: RiskBoundingBox) async throws -> [RiskPlace]
 }
 
 enum RiskRepositoryError: Error { case unavailable, notModified, invalidResponse }
@@ -196,6 +199,7 @@ struct RiskRepositoryUnavailable: Error {}
 /// No worldwide public risk feed is assumed. The production app stays empty rather than inventing risk data.
 struct UnavailableRiskRepository: RiskRepository {
     func fetchRisks() async throws -> [RiskPlace] { throw RiskRepositoryUnavailable() }
+    func fetchRisks(in bbox: RiskBoundingBox) async throws -> [RiskPlace] { throw RiskRepositoryUnavailable() }
 }
 
 struct RemoteRiskRepository: RiskRepository {
@@ -203,13 +207,16 @@ struct RemoteRiskRepository: RiskRepository {
     let allowedHost: String?
     private let maxResponseBytes = 8 * 1024 * 1024
     private let maxRisks = 5000
-    func fetchRisks() async throws -> [RiskPlace] {
+    func fetchRisks() async throws -> [RiskPlace] { try await fetchRisks(in: RiskBoundingBox(west: -180, south: -90, east: 180, north: 90, page: 1)) }
+    func fetchRisks(in bbox: RiskBoundingBox) async throws -> [RiskPlace] {
         guard let endpoint, endpoint.scheme?.lowercased() == "https", let host = endpoint.host, let allowedHost, !allowedHost.isEmpty, host == allowedHost, !host.hasPrefix("localhost"), !host.hasPrefix("127."), !host.hasPrefix("10."), !host.hasPrefix("192.168.") else { throw RiskRepositoryError.unavailable }
+        var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)!; components.queryItems = [URLQueryItem(name: "west", value: String(bbox.west)), URLQueryItem(name: "south", value: String(bbox.south)), URLQueryItem(name: "east", value: String(bbox.east)), URLQueryItem(name: "north", value: String(bbox.north)), URLQueryItem(name: "page", value: String(bbox.page))]
+        guard let regionalEndpoint = components.url else { throw RiskRepositoryError.unavailable }
         var lastError: Error?
         for delay in [0.0, 1.0, 3.0, 10.0] {
             if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
             do {
-                var request = URLRequest(url: endpoint); request.timeoutInterval = 8; request.cachePolicy = .reloadIgnoringLocalCacheData; request.setValue("application/json", forHTTPHeaderField: "Accept")
+                var request = URLRequest(url: regionalEndpoint); request.timeoutInterval = 8; request.cachePolicy = .reloadIgnoringLocalCacheData; request.setValue("application/json", forHTTPHeaderField: "Accept")
                 if let etag = UserDefaults.standard.string(forKey: "travelguard.feed.etag") { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
                 let (data, response) = try await URLSession.shared.data(for: request)
                 guard let http = response as? HTTPURLResponse else { throw RiskRepositoryError.invalidResponse }

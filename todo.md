@@ -352,3 +352,11 @@
 - [x] Préparer cache régional/viewport et contrat feed paginé
 - [x] Ajouter fixtures JSON et tests HTTP/adversariaux
 - [x] Régénérer, valider, empaqueter et publier la version finale
+
+# Finalisation complète après audit 27
+- [x] Ajouter contrat feed régional par bbox/viewport avec pagination
+- [x] Ajouter cache régional borné et clé de tuile stable
+- [x] Ajouter fixtures feeds valides, expirées, dupliquées, révoquées, malveillantes et trop volumineuses
+- [x] Ajouter tests HTTP des statuts 200, 204, 301, 302, 400, 401, 403, 404, 408, 429, 500, 502, 503
+- [x] Vérifier que le cache valide est conservé en cas de réponse invalide
+- [x] Régénérer, valider, publier et sauvegarder la version complète

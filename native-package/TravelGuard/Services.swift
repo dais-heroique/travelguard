@@ -337,6 +337,11 @@ final class TravelGuardStore: ObservableObject {
         }
     }
 
+    func synchronizeRisks(in bbox: RiskBoundingBox) async {
+        let generation = beginRiskSync()
+        do { let incoming = try await riskRepository.fetchRisks(in: bbox); updateRisks(incoming, generation: generation); riskSyncState = incoming.isEmpty ? "Aucun risque validé reçu" : "Risques régionaux synchronisés" } catch { riskSyncState = "Source régionale indisponible" }
+    }
+
     func updateRisks(_ incoming: [RiskPlace], generation: Int? = nil) {
         if let generation, generation < latestRiskSyncGeneration { return }
         purgeNotificationCooldowns()
