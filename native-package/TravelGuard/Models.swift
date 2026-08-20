@@ -23,6 +23,14 @@ struct RiskPlace: Identifiable, Hashable {
         let days = max(0, Calendar.current.dateComponents([.day], from: updatedAt, to: Date()).day ?? 0)
         return days == 0 ? "Mis à jour aujourd’hui" : "Mis à jour il y a \(days) j"
     }
+
+    var confidenceScore: Int {
+        let ageDays = max(0, Calendar.current.dateComponents([.day], from: updatedAt, to: Date()).day ?? 0)
+        let freshness = max(0, 25 - min(ageDays, 25))
+        let reportSignal = min(25, reportCount * 2)
+        let sourceSignal = source.contains("démonstration") ? 5 : 20
+        return min(100, max(0, (score / 2) + freshness + reportSignal + sourceSignal))
+    }
 }
 
 struct FairPrice: Identifiable, Hashable {
@@ -42,7 +50,7 @@ struct SOSPhrase: Identifiable, Hashable {
     let translation: String
 }
 
-private let localReferenceDate = Calendar.current.date(byAdding: .day, value: -2, to: Date()) ?? Date()
+private let localReferenceDate = Date(timeIntervalSince1970: 1754006400)
 
 let sampleRisks = [
     RiskPlace(id: "taxi-1", name: "Taxi sans compteur", category: "Taxi", score: 31, summary: "Refus fréquent du compteur et tarif annoncé après la course.", latitude: 48.8584, longitude: 2.2945, signals: ["Pas de compteur visible", "Prix variable selon le client"], source: "Donnée locale de démonstration", updatedAt: localReferenceDate, reportCount: 12),
@@ -55,6 +63,10 @@ let samplePrices = [
     FairPrice(id: "taxi", label: "Course taxi", value: "12–18 €", reference: "Trajet urbain standard", city: "Paris", source: "Référence locale de démonstration", updatedAt: localReferenceDate),
     FairPrice(id: "museum", label: "Billet attraction", value: "18 €", reference: "Tarif officiel indicatif", city: "Paris", source: "Référence locale de démonstration", updatedAt: localReferenceDate)
 ]
+
+func prices(for city: String) -> [FairPrice] {
+    samplePrices.filter { $0.city.localizedCaseInsensitiveCompare(city) == .orderedSame }
+}
 
 let sampleSOS = [
     SOSPhrase(language: "Français", local: "Je veux le prix officiel, s’il vous plaît.", translation: "Phrase de contrôle du tarif"),

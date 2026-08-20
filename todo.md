@@ -137,3 +137,15 @@
 - [x] Corriger les distances, sources, dates et signalements ; la sélection native ouvre le détail du risque
 - [x] Corriger Bundle ID, scheme, logo local et configuration iOS signalés par l’audit
 - [x] Lire les lignes restantes de l’audit et associer chaque point à une validation structurelle ou une limite documentée
+
+# Audit Pasted_content_08.txt
+
+- [x] Empêcher le recentrage automatique de la carte après le premier centrage
+- [x] Ajouter un mode de zoom explicite sans réinitialiser le geste utilisateur
+- [x] Renforcer l’OCR avec extraction des montants, devise, taxes, service et total
+- [x] Ajouter les langues OCR de voyage et remettre PhotosPicker à nil après analyse
+- [x] Améliorer rotation, contraste et préparation d’image avant Vision OCR
+- [x] Corriger les alertes : activation explicite, persistance cohérente et rayon géographique prudent
+- [x] Filtrer les positions GPS imprécises et limiter le reverse geocoding
+- [x] Adapter la précision GPS et le suivi pour réduire la consommation énergétique
+- [x] Relire la seconde partie de l’audit et documenter les limites restantes

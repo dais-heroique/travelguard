@@ -19,3 +19,13 @@ Les risques et références de prix ne proviennent pas encore d’une base offic
 Le compilateur Xcode et MapKit ne sont pas disponibles dans le sandbox Linux. La validation effectuée ici couvre la structure PBX, les références `isa`, l’Info.plist, le Bundle ID, le scheme Release, l’équilibre des fichiers Swift générés et l’absence de plusieurs anti-patterns connus. La compilation finale et les gestes sur iPhone doivent être exécutés dans Xcode sur macOS.
 
 La partie Expo/Web historique reste dans le dépôt pour conserver l’historique du développement, mais elle n’est pas le livrable recommandé et ne doit pas être ouverte pour tester l’application native. Le chemin de référence est uniquement `native-package/TravelGuard.xcodeproj`.
+
+## Corrections supplémentaires de Pasted_content_08.txt
+
+La carte ne recentre plus la région à chaque mise à jour GPS : elle effectue un centrage initial unique, puis seulement sur une action explicite de l’utilisateur. Les boutons de zoom sont compacts et la liaison plein écran conserve la région courante sans recentrage déclenché par le GPS.
+
+Le scanner normalise l’orientation de l’image, augmente légèrement le contraste, utilise les langues Vision disponibles parmi le français, l’anglais, l’italien, l’espagnol, l’allemand, le portugais, le slovène et le croate, réinitialise la sélection PhotosPicker après analyse et extrait les montants avec devise, sous-total, taxes, service et total lorsqu’ils sont lisibles. Cette lecture reste une aide locale : elle ne remplace pas une expertise comptable et ne peut pas déduire un prix juste sans référence officielle par ville.
+
+Le service GPS rejette les positions dont la précision dépasse 100 mètres pour le calcul des risques, réduit la fréquence de mise à jour et limite le reverse geocoding aux déplacements d’au moins 2 kilomètres. Les erreurs de géocodage sont désormais visibles. Les alertes de proximité ne demandent plus la permission Notifications au démarrage : l’utilisateur les active explicitement, le choix est persisté, la permission est affichée séparément et les régions utilisent un rayon prudent de 250 mètres.
+
+Les dates des données locales sont fixes plutôt que recalculées à chaque lancement. Un score de confiance dérivé combine la gravité initiale, la fraîcheur, le nombre de signalements et un signal de fiabilité de source ; les données de démonstration restent toutefois clairement étiquetées. Le README racine place `native-package/TravelGuard.xcodeproj` en première position afin d’éviter le lancement involontaire de l’ancien prototype Expo.

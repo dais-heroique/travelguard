@@ -14,20 +14,24 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     @Published private(set) var country = ""
     @Published private(set) var errorMessage: String?
     @Published private(set) var lastUpdated: Date?
+    @Published private(set) var notificationPermission: UNAuthorizationStatus = .notDetermined
     private let manager = CLLocationManager()
     private let geocoder = CLGeocoder()
     private let cacheLifetime: TimeInterval = 24 * 60 * 60
+    private var lastGeocodeLocation: CLLocation?
 
     override init() {
         super.init()
         manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyBest
-        manager.distanceFilter = 25
+        manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+        manager.distanceFilter = 50
+        manager.activityType = .otherNavigation
+        manager.pausesLocationUpdatesAutomatically = true
         authorization = manager.authorizationStatus
         servicesEnabled = CLLocationManager.locationServicesEnabled()
         restoreFreshCache()
         if hasPermission { manager.startUpdatingLocation() }
-        if UserDefaults.standard.bool(forKey: "alertsEnabled") { setProximityAlerts(true) }
+        if UserDefaults.standard.bool(forKey: "alertsEnabled") { restoreProximityAlertsIfAuthorized() }
     }
 
     var hasPermission: Bool { authorization == .authorizedWhenInUse || authorization == .authorizedAlways }
@@ -54,18 +58,33 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func setProximityAlerts(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: "alertsEnabled")
         if !enabled {
-            sampleRisks.forEach { manager.stopMonitoring(for: CLCircularRegion(center: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), radius: 100, identifier: $0.id)) }
+            sampleRisks.forEach { manager.stopMonitoring(for: CLCircularRegion(center: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), radius: 250, identifier: $0.id)) }
             return
         }
         Task {
             let granted = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
             guard granted == true, hasPermission else { return }
-            for risk in sampleRisks {
-                let region = CLCircularRegion(center: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude), radius: 100, identifier: risk.id)
-                region.notifyOnEntry = true
-                manager.startMonitoring(for: region)
+            await MainActor.run { self.monitorRiskRegions() }
+        }
+    }
+
+    func restoreProximityAlertsIfAuthorized() {
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            Task { @MainActor in
+                guard let self else { return }
+                self.notificationPermission = settings.authorizationStatus
+                if settings.authorizationStatus == .authorized && self.hasPermission { self.monitorRiskRegions() }
             }
+        }
+    }
+
+    private func monitorRiskRegions() {
+        for risk in sampleRisks {
+            let region = CLCircularRegion(center: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude), radius: 250, identifier: risk.id)
+            region.notifyOnEntry = true
+            manager.startMonitoring(for: region)
         }
     }
 
@@ -89,6 +108,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last, location.horizontalAccuracy >= 0 else { return }
+        guard location.horizontalAccuracy <= 100 else { errorMessage = "Précision GPS insuffisante (±\(Int(location.horizontalAccuracy)) m). Les risques locaux restent masqués."; accuracy = location.horizontalAccuracy; return }
         coordinate = location.coordinate
         accuracy = location.horizontalAccuracy
         lastUpdated = Date()
@@ -97,8 +117,15 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         UserDefaults.standard.set(location.coordinate.longitude, forKey: "lastLongitude")
         UserDefaults.standard.set(location.horizontalAccuracy, forKey: "lastLocationAccuracy")
         UserDefaults.standard.set(Date(), forKey: "lastLocationTimestamp")
-        geocoder.reverseGeocodeLocation(location) { [weak self] places, _ in
-            guard let self, let place = places?.first else { return }
+        let shouldGeocode = lastGeocodeLocation == nil || (lastGeocodeLocation?.distance(from: location) ?? .greatestFiniteMagnitude) > 2000
+        guard shouldGeocode else { return }
+        lastGeocodeLocation = location
+        geocoder.cancelGeocode()
+        geocoder.reverseGeocodeLocation(location) { [weak self] places, error in
+            guard let self, error == nil, let place = places?.first else {
+                Task { @MainActor in self?.errorMessage = "Ville indisponible pour le moment ; la position GPS reste utilisable." }
+                return
+            }
             Task { @MainActor in
                 self.city = place.locality ?? place.subAdministrativeArea ?? place.administrativeArea ?? "Position détectée"
                 self.country = place.country ?? ""
