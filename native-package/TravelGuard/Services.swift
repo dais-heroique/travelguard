@@ -18,11 +18,13 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     @Published private(set) var monitoringActive = false
     @Published private(set) var isUsingCachedLocation = false
     @Published private(set) var errorMessage: String?
+    @Published private(set) var geocodingErrorMessage: String?
     @Published private(set) var lastUpdated: Date?
     @Published private(set) var notificationPermission: UNAuthorizationStatus = .notDetermined
     private let manager = CLLocationManager()
     private let geocoder = CLGeocoder()
     private let cacheLifetime: TimeInterval = 24 * 60 * 60
+
     private var lastGeocodeLocation: CLLocation?
     private var hasFreshLocationForAlerts = false
     private var monitoredRisks: [RiskPlace] = trustedRisks
@@ -45,12 +47,21 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
 
     var hasPermission: Bool { authorization == .authorizedWhenInUse || authorization == .authorizedAlways }
     var permissionDenied: Bool { authorization == .denied || authorization == .restricted }
+    var cachedAgeLabel: String {
+        guard let lastUpdated else { return "âge inconnu" }
+        let seconds = max(0, Int(Date().timeIntervalSince(lastUpdated)))
+        if seconds < 60 { return "à l’instant" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "il y a \(minutes) min" }
+        let hours = minutes / 60
+        return "il y a \(hours) h"
+    }
     var locationStatus: String {
         if !servicesEnabled { return "Services de localisation désactivés" }
         if permissionDenied { return "Autorisation de localisation refusée" }
         if coordinate == nil { return "Localisation en cours…" }
-        if isUsingCachedLocation { return "Dernière position connue · GPS en attente" }
-        if let accuracy { return "Précision ±\(Int(max(0, accuracy))) m" }
+        if isUsingCachedLocation { return "Dernière position connue · \(cachedAgeLabel) · GPS en attente" }
+        if let accuracy { return accuracy <= 50 ? "Position précise · ±\(Int(accuracy)) m" : accuracy <= 200 ? "Position approximative · ±\(Int(accuracy)) m" : "Position très imprécise · ±\(Int(accuracy)) m" }
         return "Position détectée"
     }
 
@@ -202,10 +213,11 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         geocoder.cancelGeocode()
         geocoder.reverseGeocodeLocation(location) { [weak self] places, error in
             guard let self, error == nil, let place = places?.first else {
-                Task { @MainActor in self?.errorMessage = "Ville indisponible pour le moment ; la position GPS reste utilisable." }
+                Task { @MainActor in self?.geocodingErrorMessage = "Ville indisponible pour le moment ; la position GPS reste utilisable." }
                 return
             }
             Task { @MainActor in
+                self.geocodingErrorMessage = nil
                 self.city = place.locality ?? place.subAdministrativeArea ?? place.administrativeArea ?? "Position détectée"
                 self.country = place.country ?? ""
                 self.countryCode = place.isoCountryCode ?? ""
@@ -226,11 +238,17 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
+        let cooldownKey = "travelguard.notificationCooldown.\(region.identifier)"
+        let now = Date()
+        if let previous = UserDefaults.standard.object(forKey: cooldownKey) as? Date, now.timeIntervalSince(previous) < 1800 { return }
+        UserDefaults.standard.set(now, forKey: cooldownKey)
+        let risk = monitoredRisks.first { $0.id == region.identifier }
         let content = UNMutableNotificationContent()
-        content.title = "TravelGuard · vigilance"
-        content.body = "Vous entrez dans une zone signalée. Vérifiez les prix et conditions avant de payer."
+        content.title = risk.map { "Risque \($0.severityLabel) à proximité" } ?? "TravelGuard · vigilance"
+        let distance = risk?.formattedDistance(from: coordinate) ?? "distance inconnue"
+        content.body = risk.map { "\($0.category) · \(distance). Confiance \($0.confidenceScore) %. Vérifiez les prix avant de payer." } ?? "Vous entrez dans une zone signalée. Vérifiez les prix et conditions avant de payer."
         content.sound = .default
-        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "risk-\(region.identifier)-\(Date().timeIntervalSince1970)", content: content, trigger: nil))
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "risk-\(region.identifier)", content: content, trigger: nil))
     }
 
 }
@@ -261,16 +279,29 @@ final class TravelGuardStore: ObservableObject {
     @Published var onboardingComplete: Bool
     @Published var travelerProfile = UserDefaults.standard.string(forKey: "travelerProfile") ?? "Voyageur fréquent"
     @Published var priorities: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "priorities") ?? [])
-    @Published private(set) var risks: [RiskPlace] = trustedRisks
+    @Published private(set) var risks: [RiskPlace]
     let location = LocationService()
     let network = NetworkMonitor()
     @Published var selectedTab = 0
+    private let riskCacheKey = "travelguard.validatedRisks.v1"
+    private var latestRiskSyncGeneration = 0
 
     init() {
         onboardingComplete = UserDefaults.standard.bool(forKey: "onboardingComplete")
+        if let data = UserDefaults.standard.data(forKey: riskCacheKey), let cached = try? JSONDecoder().decode([RiskPlace].self, from: data) { risks = RiskPlace.validated(cached) } else { risks = trustedRisks }
+        location.updateRisks(risks)
     }
 
-    func updateRisks(_ risks: [RiskPlace]) { self.risks = risks; location.updateRisks(risks) }
+    func beginRiskSync() -> Int { latestRiskSyncGeneration += 1; return latestRiskSyncGeneration }
+
+    func updateRisks(_ incoming: [RiskPlace], generation: Int? = nil) {
+        if let generation, generation < latestRiskSyncGeneration { return }
+        if let generation { latestRiskSyncGeneration = generation }
+        let validated = RiskPlace.validated(incoming)
+        risks = validated
+        location.updateRisks(validated)
+        if let data = try? JSONEncoder().encode(validated) { UserDefaults.standard.set(data, forKey: riskCacheKey) }
+    }
 
     func completeOnboarding(profile: String, priorities: Set<String>) {
         travelerProfile = profile

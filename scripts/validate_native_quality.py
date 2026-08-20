@@ -41,6 +41,15 @@ assert "distanceFilter = 100" in all_swift
 assert "startUpdatingLocation" not in all_swift
 assert "waitingForAlwaysAuthorization" not in all_swift
 assert "store.risks" in all_swift
+assert "Hashable, Codable" in all_swift
+assert "RiskPlace.validated" in all_swift
+assert "riskCacheKey" in all_swift
+assert "beginRiskSync" in all_swift
+assert "notificationCooldown" in all_swift
+assert "cachedAgeLabel" in all_swift
+assert "geocodingErrorMessage" in all_swift
+assert "zone visible" in all_swift
+assert "frame(width: 44, height: 44)" in all_swift
 assert "location.horizontalAccuracy > 200" in all_swift
 assert "manager.monitoredRegions.forEach { manager.stopMonitoring" in all_swift
 assert "settings.authorizationStatus != .authorized" in all_swift

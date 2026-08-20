@@ -49,3 +49,16 @@ Le sandbox ne possède pas Xcode ni un iPhone connecté. Sur le Mac, il faut ouv
 | GPS précis puis précision supérieure à 200 m | Toutes les anciennes régions sont arrêtées et le monitoring devient inactif | Appareil/Xcode |
 | Recentrage avec cache GPS | Une nouvelle demande de position est faite ; la carte ne se recentre pas sur l’ancienne position | Appareil/Xcode |
 | `updateRisks` avec une nouvelle liste | La carte, le toggle et le géofencing utilisent la même liste synchronisée ; `monitoringActive` repasse d’abord à false | Test déterministe + appareil |
+
+## Audit 22 — données offline, viewport et notifications
+
+| Scénario | Résultat attendu | Validation |
+|---|---|---|
+| `updateRisks` avec risques valides puis fermeture/réouverture | La dernière liste validée est restaurée depuis le cache local | Test déterministe + appareil |
+| Risque invalide (ID vide, coordonnées hors limites, score hors 0–100) | L’entrée est rejetée avant affichage et géofencing | Test déterministe |
+| Deux synchronisations versionnées | Une réponse ancienne ne remplace pas la génération la plus récente | Test déterministe |
+| Déplacement ou zoom vers une autre ville | Les marqueurs suivent la zone visible de la carte, indépendamment du rayon GPS de proximité | Appareil/Xcode |
+| Synchronisation pendant le plein écran | Les marqueurs du plein écran changent avec `store.risks` sans snapshot périmé | Appareil/Xcode |
+| Entrée répétée dans la même région dans les 30 minutes | Une seule notification est envoyée pendant le cooldown | Appareil/Xcode |
+| Position cache restaurée | L’âge (« il y a X min/h ») est visible et le bouton affiche la recherche GPS | Appareil/Xcode |
+| VoiceOver sur contrôles de carte | Recentrage, zoom, risque, sévérité et confiance sont annoncés | Appareil/Xcode |

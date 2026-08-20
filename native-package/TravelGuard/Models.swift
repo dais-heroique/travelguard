@@ -1,7 +1,16 @@
 import CoreLocation
 import Foundation
 
-struct RiskPlace: Identifiable, Hashable {
+struct RiskPlace: Identifiable, Hashable, Codable {
+    static func validated(_ risks: [RiskPlace]) -> [RiskPlace] {
+        risks.filter { risk in
+            !risk.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            (-90...90).contains(risk.latitude) && (-180...180).contains(risk.longitude) &&
+            (0...100).contains(risk.score) && risk.reportCount >= 0 &&
+            (0...100).contains(risk.confidenceScore)
+        }
+    }
+
     let id: String
     let name: String
     let category: String
@@ -24,6 +33,9 @@ struct RiskPlace: Identifiable, Hashable {
         return days == 0 ? "Mis à jour aujourd’hui" : "Mis à jour il y a \(days) j"
     }
 
+    var severityLabel: String {
+        switch score { case 0..<25: return "faible"; case 25..<60: return "modéré"; case 60..<80: return "élevé"; default: return "critique" }
+    }
     var confidenceScore: Int {
         let ageDays = max(0, Calendar.current.dateComponents([.day], from: updatedAt, to: Date()).day ?? 0)
         let freshness = max(0, 25 - min(ageDays, 25))

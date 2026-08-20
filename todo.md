@@ -267,3 +267,17 @@
 - [x] Mettre monitoringActive à false avant chaque nouvelle synchronisation
 - [x] Supprimer le flag waitingForAlwaysAuthorization devenu inutile
 - [x] Régénérer, valider et publier la version corrigée
+
+# Corrections Pasted_content_22
+- [x] Persister les risques synchronisés pour le mode hors ligne
+- [x] Valider strictement les risques entrants
+- [x] Protéger les synchronisations contre les réponses obsolètes
+- [x] Ajouter une chaîne repository locale/offline documentée
+- [x] Afficher les risques selon le viewport de la carte
+- [x] Connecter le plein écran à la source de risques du store
+- [x] Ajouter un état de recherche de position et l’âge du cache
+- [x] Passer les contrôles carte à 44x44 et compléter VoiceOver
+- [x] Séparer visuellement risque et confiance
+- [x] Contextualiser et dédupliquer les notifications
+- [x] Améliorer le statut ville/pays et les erreurs GPS séparées
+- [x] Régénérer, valider et publier la version corrigée
