@@ -220,3 +220,15 @@
 - [x] Préparer un calcul de distances en une seule passe
 - [x] Limiter le zoom maximal à un rayon local utile
 - [x] Régénérer, valider et publier la version corrigée
+
+# Corrections Pasted_content_13
+- [x] Exiger une position fraîche avant de restaurer le géofencing
+- [x] Relancer une position ponctuelle après autorisation
+- [x] Conserver les positions GPS imprécises avec un état dégradé
+- [x] Ne jamais utiliser le cache ancien pour activer des alertes
+- [x] Journaliser les erreurs CLLocation avec leur code
+- [x] Ajouter une méthode publique de rafraîchissement des régions
+- [x] Recalculer les régions après synchronisation des risques
+- [x] Classer les risques par proximité, gravité, confiance et récence
+- [x] Documenter et tester marche, véhicule, arrière-plan et écran verrouillé
+- [x] Régénérer, valider et publier la version corrigée

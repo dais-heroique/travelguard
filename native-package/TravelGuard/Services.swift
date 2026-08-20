@@ -22,19 +22,21 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     private let geocoder = CLGeocoder()
     private let cacheLifetime: TimeInterval = 24 * 60 * 60
     private var lastGeocodeLocation: CLLocation?
+    private var hasFreshLocationForAlerts = false
+    private var monitoredRisks: [RiskPlace] = trustedRisks
 
     override init() {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
-        manager.distanceFilter = 50
+        manager.distanceFilter = 25
         manager.activityType = .otherNavigation
-        manager.pausesLocationUpdatesAutomatically = true
+        manager.pausesLocationUpdatesAutomatically = false
         authorization = manager.authorizationStatus
         servicesEnabled = CLLocationManager.locationServicesEnabled()
         restoreFreshCache()
-        if hasPermission { manager.startUpdatingLocation() }
-        proximityAlertsEnabled = UserDefaults.standard.bool(forKey: "alertsEnabled") && !trustedRisks.isEmpty
+        if hasPermission { manager.startUpdatingLocation(); manager.requestLocation() }
+        proximityAlertsEnabled = UserDefaults.standard.bool(forKey: "alertsEnabled") && !monitoredRisks.isEmpty
         if proximityAlertsEnabled { restoreProximityAlertsIfAuthorized() }
     }
 
@@ -51,7 +53,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     func requestPermission() {
         servicesEnabled = CLLocationManager.locationServicesEnabled()
         guard servicesEnabled else { errorMessage = "Activez la localisation dans Réglages pour utiliser les risques à proximité."; openSettings(); return }
-        if hasPermission { manager.startUpdatingLocation() } else if permissionDenied { errorMessage = "Autorisation refusée. Ouvrez Réglages → TravelGuard → Localisation."; openSettings() } else { manager.requestWhenInUseAuthorization() }
+        if hasPermission { manager.startUpdatingLocation(); manager.requestLocation() } else if permissionDenied { errorMessage = "Autorisation refusée. Ouvrez Réglages → TravelGuard → Localisation."; openSettings() } else { manager.requestWhenInUseAuthorization() }
     }
 
     private func openSettings() {
@@ -67,7 +69,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func setProximityAlerts(_ enabled: Bool) {
-        guard enabled, !trustedRisks.isEmpty else {
+        guard enabled, !monitoredRisks.isEmpty else {
             proximityAlertsEnabled = false
             UserDefaults.standard.set(false, forKey: "alertsEnabled")
             manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }
@@ -87,7 +89,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
                     self.errorMessage = self.authorization == .authorizedAlways ? "Les notifications sont nécessaires pour les alertes de proximité." : "Les alertes en arrière-plan nécessitent l’autorisation Toujours."
                     return
                 }
-                self.monitorRiskRegions()
+                self.manager.startUpdatingLocation()
+                self.manager.requestLocation()
             }
         }
     }
@@ -97,21 +100,43 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
             Task { @MainActor in
                 guard let self else { return }
                 self.notificationPermission = settings.authorizationStatus
-                if settings.authorizationStatus == .authorized && self.authorization == .authorizedAlways { self.monitorRiskRegions() }
+                self.manager.monitoredRegions.forEach { self.manager.stopMonitoring(for: $0) }
+                if settings.authorizationStatus == .authorized && self.authorization == .authorizedAlways { self.manager.startUpdatingLocation(); self.manager.requestLocation() }
             }
         }
     }
 
+    func refreshMonitoredRegions() {
+        guard hasFreshLocationForAlerts else { return }
+        monitorRiskRegions()
+    }
+
+    /// Called by a future API/offline sync after replacing the authoritative risk set.
+    func updateRisks(_ risks: [RiskPlace]) {
+        monitoredRisks = risks
+        if risks.isEmpty { manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }; return }
+        if UserDefaults.standard.bool(forKey: "alertsEnabled") && authorization == .authorizedAlways {
+            proximityAlertsEnabled = true
+            manager.startUpdatingLocation()
+            manager.requestLocation()
+        }
+    }
+
     private func monitorRiskRegions() {
-        guard authorization == .authorizedAlways, proximityAlertsEnabled else { return }
-        let current = coordinate
-        let nearby = trustedRisks
-            .filter { risk in (risk.distance(from: current) ?? .greatestFiniteMagnitude) <= 10000 }
-            .sorted { ($0.distance(from: current) ?? .greatestFiniteMagnitude) < ($1.distance(from: current) ?? .greatestFiniteMagnitude) }
+        guard authorization == .authorizedAlways, proximityAlertsEnabled, hasFreshLocationForAlerts, let current = coordinate else { return }
+        let nearby = monitoredRisks
+            .compactMap { risk -> (risk: RiskPlace, distance: CLLocationDistance)? in
+                guard let distance = risk.distance(from: current), distance <= 10000 else { return nil }
+                let priority = Double(risk.confidenceScore) * 0.55 + Double(max(0, 100 - min(100, Int(distance / 100)))) * 0.25 + Double(min(100, risk.reportCount * 5)) * 0.20
+                return (risk, distance + (10000 - priority * 100))
+            }
+            .sorted { $0.distance < $1.distance }
             .prefix(20)
-        let desiredIDs = Set(nearby.map(\.id))
+        let desiredIDs = Set(nearby.map { $0.risk.id })
         manager.monitoredRegions.filter { !desiredIDs.contains($0.identifier) }.forEach { manager.stopMonitoring(for: $0) }
-        for risk in nearby where !manager.monitoredRegions.contains(where: { $0.identifier == risk.id }) {
+        for entry in nearby {
+            let risk = entry.risk
+            guard !manager.monitoredRegions.contains(where: { $0.identifier == risk.id }) else { continue }
             let region = CLCircularRegion(center: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude), radius: 250, identifier: risk.id)
             region.notifyOnEntry = true
             manager.startMonitoring(for: region)
@@ -136,17 +161,17 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         servicesEnabled = CLLocationManager.locationServicesEnabled()
         if hasPermission {
             manager.startUpdatingLocation()
-            if authorization == .authorizedAlways && proximityAlertsEnabled { monitorRiskRegions() }
+            manager.requestLocation()
         } else if permissionDenied { errorMessage = "Autorisation refusée. Vous pouvez l’activer dans Réglages." }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last, location.horizontalAccuracy >= 0 else { return }
-        guard location.horizontalAccuracy <= 100 else { errorMessage = "Précision GPS insuffisante (±\(Int(location.horizontalAccuracy)) m). Les risques locaux restent masqués."; accuracy = location.horizontalAccuracy; return }
         coordinate = location.coordinate
         accuracy = location.horizontalAccuracy
         lastUpdated = Date()
-        errorMessage = nil
+        hasFreshLocationForAlerts = true
+        errorMessage = location.horizontalAccuracy > 200 ? "Position très imprécise (±\(Int(location.horizontalAccuracy)) m) : distances et alertes approximatives." : location.horizontalAccuracy > 100 ? "Position GPS approximative (±\(Int(location.horizontalAccuracy)) m)." : nil
         UserDefaults.standard.set(location.coordinate.latitude, forKey: "lastLatitude")
         UserDefaults.standard.set(location.coordinate.longitude, forKey: "lastLongitude")
         UserDefaults.standard.set(location.horizontalAccuracy, forKey: "lastLocationAccuracy")
@@ -173,7 +198,11 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        errorMessage = "Position indisponible pour le moment. Vérifiez le signal GPS et réessayez."
+        let code = (error as? CLError)?.code
+        print("[TravelGuard][Location] error=\(String(describing: code)) description=\(error.localizedDescription)")
+        if code == .denied { errorMessage = "Autorisation de localisation refusée. Ouvrez Réglages." }
+        else if code == .locationUnknown { errorMessage = "Position GPS temporairement indisponible. Réessayez dans quelques instants." }
+        else { errorMessage = "Erreur GPS (\(code?.rawValue ?? -1)) : \(error.localizedDescription)" }
         if coordinate == nil { city = "Position indisponible" }
     }
 
@@ -218,6 +247,8 @@ final class TravelGuardStore: ObservableObject {
     init() {
         onboardingComplete = UserDefaults.standard.bool(forKey: "onboardingComplete")
     }
+
+    func updateRisks(_ risks: [RiskPlace]) { location.updateRisks(risks) }
 
     func completeOnboarding(profile: String, priorities: Set<String>) {
         travelerProfile = profile
