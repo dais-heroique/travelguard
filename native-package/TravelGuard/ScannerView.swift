@@ -4,6 +4,7 @@ import UIKit
 import Vision
 
 struct ScannerView: View {
+    @EnvironmentObject private var store: TravelGuardStore
     @State private var selectedItem: PhotosPickerItem?
     @State private var recognizedText = ""
     @State private var recognizedLines: [String] = []
@@ -29,12 +30,18 @@ struct ScannerView: View {
             } else if !isAnalyzing {
                 VStack(alignment: .leading, spacing: 8) { Label("Aucun document analysé", systemImage: "viewfinder").font(.headline); Text("Prenez une photo ou choisissez une image pour lancer la détection du texte.").font(.subheadline).foregroundStyle(TGColor.muted) }.tgCard()
             }
-            Text("Hors connexion : la capture et l’extraction du texte restent disponibles. L’analyse est réalisée localement sur l’iPhone.").font(.footnote).foregroundStyle(TGColor.muted).padding(.top, 8)
+            Label(store.network.isChecking ? "Vérification du réseau…" : store.network.isOnline ? "En ligne · OCR local disponible" : "Hors ligne · OCR local disponible", systemImage: store.network.isOnline ? "wifi" : "wifi.slash").font(.footnote).foregroundStyle(TGColor.muted).padding(.top, 8)
         }.padding(20).padding(.bottom, 30) }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).sheet(isPresented: $showingCamera) { CameraPicker { image in Task { await recognize(image) } } } }
     }
     @MainActor private func analyze(_ item: PhotosPickerItem?) async {
-        guard let item, let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { recognizedLines = ["Image impossible à charger. Choisissez une autre photo et réessayez."]; return }
-        await recognize(image)
+        guard let item else { return }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { recognizedLines = ["Image impossible à charger. Choisissez une autre photo et réessayez."]; return }
+            await recognize(image)
+        } catch {
+            recognizedLines = ["La photo n’a pas pu être lue. Choisissez une autre image et réessayez."]
+        }
+        return
     }
     @MainActor private func recognize(_ image: UIImage) async {
         guard let cgImage = image.cgImage else { recognizedLines = ["Format d’image non pris en charge."]; isAnalyzing = false; return }

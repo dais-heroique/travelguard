@@ -2,7 +2,7 @@ from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
 
-roots = [Path('/home/ubuntu/travelguard/native-ios'), Path('/home/ubuntu/travelguard/native-package'), Path('/home/ubuntu/travelguard/TravelGuard-iOS')]
+roots = [Path('/home/ubuntu/travelguard/native-package')]
 for root in roots:
     pbx = root / 'TravelGuard.xcodeproj' / 'project.pbxproj'
     text = pbx.read_text()
@@ -14,6 +14,7 @@ for root in roots:
     assert 'rootObject = A00000000000000000000001' in text, f'{pbx}: missing root object'
     assert re.search(r'A00000000000000000000002 /\* TravelGuard(?: target)? \*/', text), f'{pbx}: missing target'
     assert 'A00000000000000000000007 /* TravelGuard.app */ = { isa = PBXFileReference;' in text, f'{pbx}: app reference missing isa'
+    assert 'PRODUCT_BUNDLE_IDENTIFIER = com.daisheroique.travelguard;' in text, f'{pbx}: unexpected bundle identifier'
     for marker in ('PBXBuildFile', 'PBXFileReference', 'PBXGroup', 'PBXNativeTarget', 'PBXProject', 'PBXResourcesBuildPhase', 'PBXSourcesBuildPhase', 'XCBuildConfiguration', 'XCConfigurationList'):
         assert marker in text, f'{pbx}: missing {marker}'
     assert (root / 'TravelGuard' / 'TravelGuardApp.swift').exists(), f'{root}: missing source'

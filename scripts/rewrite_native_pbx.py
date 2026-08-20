@@ -1,7 +1,7 @@
 from pathlib import Path
 import re
 
-ROOT = Path('/home/ubuntu/travelguard/native-ios')
+ROOT = Path('/home/ubuntu/travelguard/native-package')
 APP = ROOT / 'TravelGuard'
 PROJ = ROOT / 'TravelGuard.xcodeproj'
 
@@ -180,8 +180,8 @@ pbx = f'''// !$*UTF8*$!
 /* Begin XCBuildConfiguration section */
 \t\t{ids['projDebug']} /* Debug */ = {{ isa = XCBuildConfiguration; buildSettings = {{ ALWAYS_SEARCH_USER_PATHS = NO; }}; name = Debug; }};
 \t\t{ids['projRelease']} /* Release */ = {{ isa = XCBuildConfiguration; buildSettings = {{ ALWAYS_SEARCH_USER_PATHS = NO; }}; name = Release; }};
-\t\t{ids['targetDebug']} /* Debug */ = {{ isa = XCBuildConfiguration; buildSettings = {{ ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; INFOPLIST_FILE = TravelGuard/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.travelguard.app; PRODUCT_NAME = TravelGuard; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }}; name = Debug; }};
-\t\t{ids['targetRelease']} /* Release */ = {{ isa = XCBuildConfiguration; buildSettings = {{ ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; INFOPLIST_FILE = TravelGuard/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.travelguard.app; PRODUCT_NAME = TravelGuard; SDKROOT = iphoneos; SWIFT_OPTIMIZATION_LEVEL = "-O"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }}; name = Release; }};
+\t\t{ids['targetDebug']} /* Debug */ = {{ isa = XCBuildConfiguration; buildSettings = {{ ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; INFOPLIST_FILE = TravelGuard/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.daisheroique.travelguard; PRODUCT_NAME = TravelGuard; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }}; name = Debug; }};
+\t\t{ids['targetRelease']} /* Release */ = {{ isa = XCBuildConfiguration; buildSettings = {{ ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; INFOPLIST_FILE = TravelGuard/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.daisheroique.travelguard; PRODUCT_NAME = TravelGuard; SDKROOT = iphoneos; SWIFT_OPTIMIZATION_LEVEL = "-O"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }}; name = Release; }};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */

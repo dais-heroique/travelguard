@@ -2,47 +2,101 @@ import Combine
 import CoreLocation
 import Foundation
 import Network
+import UserNotifications
 
 @MainActor
 final class LocationService: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published private(set) var authorization: CLAuthorizationStatus = .notDetermined
+    @Published private(set) var servicesEnabled = true
     @Published private(set) var coordinate: CLLocationCoordinate2D?
-    @Published private(set) var city = "Ville à localiser"
+    @Published private(set) var accuracy: CLLocationAccuracy?
+    @Published private(set) var city = "Localisation requise"
     @Published private(set) var country = ""
+    @Published private(set) var errorMessage: String?
+    @Published private(set) var lastUpdated: Date?
     private let manager = CLLocationManager()
     private let geocoder = CLGeocoder()
+    private let cacheLifetime: TimeInterval = 24 * 60 * 60
 
     override init() {
         super.init()
         manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.distanceFilter = 25
         authorization = manager.authorizationStatus
-        if authorization == .authorizedWhenInUse || authorization == .authorizedAlways { manager.requestLocation() }
-        if let latitude = UserDefaults.standard.object(forKey: "lastLatitude") as? Double, let longitude = UserDefaults.standard.object(forKey: "lastLongitude") as? Double {
-            coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-            city = UserDefaults.standard.string(forKey: "lastCity") ?? city
-            country = UserDefaults.standard.string(forKey: "lastCountry") ?? country
-        }
+        servicesEnabled = CLLocationManager.locationServicesEnabled()
+        restoreFreshCache()
+        if hasPermission { manager.startUpdatingLocation() }
+        if UserDefaults.standard.bool(forKey: "alertsEnabled") { setProximityAlerts(true) }
+    }
+
+    var hasPermission: Bool { authorization == .authorizedWhenInUse || authorization == .authorizedAlways }
+    var permissionDenied: Bool { authorization == .denied || authorization == .restricted }
+    var locationStatus: String {
+        if !servicesEnabled { return "Services de localisation désactivés" }
+        if permissionDenied { return "Autorisation de localisation refusée" }
+        if coordinate == nil { return "Localisation en cours…" }
+        if let accuracy { return "Précision ±\(Int(max(0, accuracy))) m" }
+        return "Position détectée"
     }
 
     func requestPermission() {
-        if authorization == .authorizedWhenInUse || authorization == .authorizedAlways { manager.requestLocation() } else { manager.requestWhenInUseAuthorization() }
+        servicesEnabled = CLLocationManager.locationServicesEnabled()
+        guard servicesEnabled else { errorMessage = "Activez la localisation dans Réglages pour utiliser les risques à proximité."; return }
+        if hasPermission { manager.startUpdatingLocation() } else { manager.requestWhenInUseAuthorization() }
     }
 
     func refresh() {
-        guard authorization == .authorizedWhenInUse || authorization == .authorizedAlways else { return }
+        servicesEnabled = CLLocationManager.locationServicesEnabled()
+        guard servicesEnabled, hasPermission else { return }
+        manager.startUpdatingLocation()
         manager.requestLocation()
+    }
+
+    func setProximityAlerts(_ enabled: Bool) {
+        if !enabled {
+            sampleRisks.forEach { manager.stopMonitoring(for: CLCircularRegion(center: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), radius: 100, identifier: $0.id)) }
+            return
+        }
+        Task {
+            let granted = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+            guard granted == true, hasPermission else { return }
+            for risk in sampleRisks {
+                let region = CLCircularRegion(center: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude), radius: 100, identifier: risk.id)
+                region.notifyOnEntry = true
+                manager.startMonitoring(for: region)
+            }
+        }
+    }
+
+    private func restoreFreshCache() {
+        guard let latitude = UserDefaults.standard.object(forKey: "lastLatitude") as? Double,
+              let longitude = UserDefaults.standard.object(forKey: "lastLongitude") as? Double,
+              let timestamp = UserDefaults.standard.object(forKey: "lastLocationTimestamp") as? Date,
+              Date().timeIntervalSince(timestamp) <= cacheLifetime else { return }
+        coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        city = UserDefaults.standard.string(forKey: "lastCity") ?? "Dernière position connue"
+        country = UserDefaults.standard.string(forKey: "lastCountry") ?? ""
+        lastUpdated = timestamp
+        accuracy = UserDefaults.standard.object(forKey: "lastLocationAccuracy") as? Double
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorization = manager.authorizationStatus
-        if authorization == .authorizedWhenInUse || authorization == .authorizedAlways { refresh() }
+        servicesEnabled = CLLocationManager.locationServicesEnabled()
+        if hasPermission { manager.startUpdatingLocation() } else if permissionDenied { errorMessage = "Autorisation refusée. Vous pouvez l’activer dans Réglages." }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
+        guard let location = locations.last, location.horizontalAccuracy >= 0 else { return }
         coordinate = location.coordinate
+        accuracy = location.horizontalAccuracy
+        lastUpdated = Date()
+        errorMessage = nil
         UserDefaults.standard.set(location.coordinate.latitude, forKey: "lastLatitude")
         UserDefaults.standard.set(location.coordinate.longitude, forKey: "lastLongitude")
+        UserDefaults.standard.set(location.horizontalAccuracy, forKey: "lastLocationAccuracy")
+        UserDefaults.standard.set(Date(), forKey: "lastLocationTimestamp")
         geocoder.reverseGeocodeLocation(location) { [weak self] places, _ in
             guard let self, let place = places?.first else { return }
             Task { @MainActor in
@@ -55,8 +109,18 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        errorMessage = "Position indisponible pour le moment. Vérifiez le signal GPS et réessayez."
         if coordinate == nil { city = "Position indisponible" }
     }
+
+    func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
+        let content = UNMutableNotificationContent()
+        content.title = "TravelGuard · vigilance"
+        content.body = "Vous entrez dans une zone signalée. Vérifiez les prix et conditions avant de payer."
+        content.sound = .default
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "risk-\(region.identifier)-\(Date().timeIntervalSince1970)", content: content, trigger: nil))
+    }
+
 }
 
 @MainActor
@@ -76,7 +140,6 @@ final class NetworkMonitor: ObservableObject {
         monitor.start(queue: queue)
     }
 
-    deinit { monitor.cancel() }
 }
 
 @MainActor

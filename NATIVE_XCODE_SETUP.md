@@ -1,49 +1,32 @@
-# Ouvrir TravelGuard dans Xcode
+# TravelGuard natif — ouverture Xcode
 
-Cette version est native SwiftUI et ne nécessite ni Node, ni Metro, ni CocoaPods pour fonctionner sur l’iPhone après installation.
+Le dépôt contient un seul projet iOS canonique : `native-package/TravelGuard.xcodeproj`. Le dossier `native-package/TravelGuard/` contient les sources SwiftUI, les permissions et les ressources. Le ZIP `TravelGuard-Xcode-FIXED.zip` est seulement une copie de téléchargement de ce même dossier.
 
-## Méthode recommandée depuis GitHub
-
-Fermer les anciennes copies de TravelGuard, puis ouvrir Terminal et exécuter exactement :
+Depuis le Mac, exécutez :
 
 ```bash
 cd ~/Downloads
 rm -rf travelguard-native
-mkdir travelguard-native
+git clone https://github.com/dais-heroique/travelguard.git travelguard-native
 cd travelguard-native
-git clone https://github.com/dais-heroique/travelguard.git repo
-cd repo
-find . -name "TravelGuard.xcodeproj" -print
+open ./native-package/TravelGuard.xcodeproj
 ```
 
-La commande `find` affiche les emplacements disponibles. Pour ouvrir automatiquement le paquet natif corrigé, exécuter ensuite :
+Dans Xcode, sélectionnez la cible **TravelGuard**, votre **Team**, l’iPhone connecté et le schéma partagé **TravelGuard**. Le schéma utilise Release afin que l’application native n’ait besoin ni de Metro, ni de Node, ni d’un serveur Mac après installation.
+
+Le Bundle ID fourni est `com.daisheroique.travelguard`. Remplacez-le par un identifiant enregistré dans votre compte Apple Developer si nécessaire. Faites ensuite **Product → Clean Build Folder**, puis **Run**.
+
+Les risques et références de prix inclus sont explicitement des données locales de démonstration, avec source et date affichées. Ils ne constituent pas une base officielle synchronisée. Pour une publication réelle, il faudra brancher une source de données vérifiable par ville.
+
+En cas d’erreur, vérifiez d’abord le chemin exact :
 
 ```bash
-PROJECT=$(find "$PWD/TravelGuard-Xcode-FIXED" -maxdepth 1 -name "TravelGuard.xcodeproj" -print -quit)
-if [ -z "$PROJECT" ]; then
-  PROJECT=$(find "$PWD" -path "*/TravelGuard-Xcode-FIXED/TravelGuard.xcodeproj" -print -quit)
-fi
-if [ -z "$PROJECT" ]; then
-  echo "Projet Xcode introuvable"
-  exit 1
-fi
-printf 'Ouverture de : %s\n' "$PROJECT"
-open "$PROJECT"
+pwd
+find . -maxdepth 3 -name "TravelGuard.xcodeproj" -print
 ```
 
-## Si le dépôt est déjà téléchargé
+Le résultat attendu est :
 
-Depuis n’importe quel dossier contenant la copie du dépôt :
-
-```bash
-cd ~/Downloads/travelguard
-PROJECT=$(find . -path "*/TravelGuard-Xcode-FIXED/TravelGuard.xcodeproj" -print -quit)
-[ -n "$PROJECT" ] || PROJECT=$(find . -path "*/native-package/TravelGuard.xcodeproj" -print -quit)
-[ -n "$PROJECT" ] || { echo "TravelGuard.xcodeproj introuvable"; exit 1; }
-printf 'Ouverture de : %s\n' "$PROJECT"
-open "$PROJECT"
+```text
+./native-package/TravelGuard.xcodeproj
 ```
-
-Dans Xcode, sélectionner ensuite la cible **TravelGuard**, choisir son **Team**, sélectionner l’iPhone connecté et lancer avec **Run**. Pour éviter Metro, utiliser le schéma partagé configuré en **Release**.
-
-La compilation et la signature doivent être réalisées sur macOS avec Xcode. Le runtime natif ne dépend pas d’un Mac allumé après installation sur l’iPhone.

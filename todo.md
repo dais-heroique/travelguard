@@ -16,7 +16,7 @@
 - [x] États de chargement, erreur, permission refusée et absence de réseau
 - [x] Tests unitaires et vérification TypeScript/lint
 - [x] Vérification visuelle des écrans et responsive web preview
-- [ ] Checkpoint final livrable
+- [ ] Checkpoint final livrable après publication des corrections de l’audit
 - [x] Corriger la prévisualisation web après conflit d’import react-native-maps
 - [x] Corriger le sizing du texte et les safe areas en bas sur iPhone
 - [x] Revoir la palette TravelGuard avec contraste et confort visuel
@@ -64,13 +64,13 @@
 - [x] Recréer le thème, les modèles locaux et la navigation en Swift
 - [x] Recréer onboarding, localisation, carte, scanner, juste prix, hors ligne et SOS en Swift
 - [x] Ajouter permissions iOS, configuration Xcode et bundle ID natif
-- [ ] Compiler et tester la version native sur iPhone
+- [ ] Compiler et tester la version native sur iPhone — requis sur macOS/Xcode
 - [x] Placer TravelGuard.xcodeproj directement à la racine du paquet natif
 - [x] Rendre le paquet indépendant d’Expo, Metro, Node et CocoaPods
-- [ ] Vérifier le lancement après sélection Team et iPhone dans Xcode
+- [ ] Vérifier le lancement après sélection Team et iPhone dans Xcode — requis sur macOS/Xcode
 - [x] Auditer et améliorer les parcours SwiftUI du paquet natif
 - [x] Compléter OCR, localisation, carte et hors ligne en natif
-- [ ] Vérifier la compilation et le lancement Xcode sur iPhone
+- [ ] Vérifier la compilation et le lancement Xcode sur iPhone — requis sur macOS/Xcode
 - [x] Mesurer la taille des dossiers Expo, natif et assets
 - [x] Créer un livrable SwiftUI séparé sans l’ancien projet Expo
 - [x] Compresser ou retirer les assets natifs inutilisés
@@ -124,3 +124,16 @@
 
 - [x] Stabiliser la taille initiale de MapKit et éviter CAMetalLayer width=0
 - [x] Vérifier le cycle de présentation plein écran de la carte sur iPhone
+
+- [x] Rendre public le dépôt GitHub dais-heroique/travelguard et vérifier sa visibilité
+
+# Audit Pasted_content_07.txt
+
+- [x] Corriger la carte native réelle, le zoom gestuel, le recentrage et les coordonnées géographiques ; la carte Web legacy reste hors du livrable natif
+- [x] Corriger la localisation : demande de permission, suivi continu, cache horodaté et états d’erreur
+- [x] Remplacer le scanner démonstratif par un flux photo/OCR local réellement relié à l’image
+- [x] Corriger l’état réseau du scanner et les états de protection trompeurs
+- [x] Corriger le numéro SOS international et implémenter les alertes locales par régions iOS
+- [x] Corriger les distances, sources, dates et signalements ; la sélection native ouvre le détail du risque
+- [x] Corriger Bundle ID, scheme, logo local et configuration iOS signalés par l’audit
+- [x] Lire les lignes restantes de l’audit et associer chaque point à une validation structurelle ou une limite documentée
