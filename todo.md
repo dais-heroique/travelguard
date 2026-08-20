@@ -232,3 +232,9 @@
 - [x] Classer les risques par proximité, gravité, confiance et récence
 - [x] Documenter et tester marche, véhicule, arrière-plan et écran verrouillé
 - [x] Régénérer, valider et publier la version corrigée
+
+# Synchronisation main publique
+- [x] Vérifier que le dépôt GitHub est public
+- [x] Vérifier l’écart entre la branche locale et main distant
+- [x] Pousser la dernière version sur main
+- [x] Confirmer le commit et les fichiers clés sur GitHub
