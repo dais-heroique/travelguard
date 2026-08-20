@@ -27,3 +27,15 @@ Le sandbox ne possède pas Xcode ni un iPhone connecté. Sur le Mac, il faut ouv
 | Risques synchronisés après démarrage | `TravelGuardStore.updateRisks(_:)` transmet les risques à `LocationService.updateRisks(_:)` et déclenche un recalcul après position fraîche | Test déterministe + appareil |
 | Marche, véhicule, arrière-plan et écran verrouillé | Les mises à jour de position et les régions se recalculent sans régression ; vérifier les autorisations iOS Always et Background Modes | Appareil/Xcode |
 | Erreur GPS `kCLErrorLocationUnknown` ou `denied` | Le code CLLocation est journalisé et un message distinct est présenté | Test appareil |
+
+## Audit 14 — permissions, batterie et état du monitoring
+
+| Scénario | Résultat attendu | Validation |
+|---|---|---|
+| Notifications acceptées avant l’autorisation Always | Les alertes restent en attente et ne sont pas désactivées ; les régions s’installent uniquement après confirmation Always puis position à ±200 m ou mieux | Appareil/Xcode |
+| Notifications refusées | Le toggle revient à désactivé et aucune région n’est surveillée | Appareil/Xcode |
+| Position fraîche à ±500–800 m | La carte conserve la position, mais le géofencing reste inactif et l’interface indique une précision insuffisante | Appareil/Xcode |
+| Cache restauré au lancement | L’interface affiche « Dernière position connue » jusqu’au nouveau fix ; aucune alerte n’est restaurée sur le cache | Appareil/Xcode |
+| App ouverte sans alertes | Aucun tracking continu ne démarre ; seules les demandes ponctuelles nécessaires sont effectuées | Instruments/Xcode |
+| Déplacement inférieur à 500 m | Les régions ne sont pas recalculées à chaque mise à jour GPS ; au-delà de 500 m ou après `updateRisks`, elles le sont | Test déterministe + appareil |
+| `updateRisks([])` | Le toggle et `monitoringActive` passent à désactivé et toutes les régions sont arrêtées | Test déterministe |

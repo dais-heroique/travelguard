@@ -238,3 +238,15 @@
 - [x] Vérifier l’écart entre la branche locale et main distant
 - [x] Pousser la dernière version sur main
 - [x] Confirmer le commit et les fichiers clés sur GitHub
+
+# Corrections Pasted_content_14
+- [x] Éliminer la race condition entre autorisation Always et notifications
+- [x] Réactiver le monitoring lorsque Always est effectivement accordé
+- [x] Désactiver l’état d’alerte lorsque updateRisks reçoit une liste vide
+- [x] Interdire le géofencing avec une précision GPS supérieure à 200 m
+- [x] Réduire le tracking GPS permanent et réactiver les mises à jour seulement au besoin
+- [x] Réduire les recalculs de régions aux déplacements significatifs ou synchronisations
+- [x] Remplacer le score de tri par une formule normalisée et documentée
+- [x] Libérer NetworkMonitor avec deinit
+- [x] Afficher explicitement dernière position connue versus position actuelle
+- [x] Régénérer, valider et publier la version corrigée

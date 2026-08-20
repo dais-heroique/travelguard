@@ -29,10 +29,16 @@ assert "calculatedTotal" in all_swift
 assert "formattedDistance" in all_swift
 assert "horizontalAccuracy > 100" in all_swift
 assert "hasFreshLocationForAlerts" in all_swift
+assert "horizontalAccuracy <= 200" in all_swift
 assert "refreshMonitoredRegions" in all_swift
 assert "updateRisks" in all_swift
 assert "CLError" in all_swift
-assert "pausesLocationUpdatesAutomatically = false" in all_swift
+assert "pausesLocationUpdatesAutomatically = true" in all_swift
+assert "monitoringScore" in all_swift
+assert "monitoringActive" in all_swift
+assert "isUsingCachedLocation" in all_swift
+assert "distanceFilter = 100" in all_swift
+assert "startUpdatingLocation" not in all_swift
 assert "hasUserInteractedWithMap" in all_swift
 assert "!hasUserInteractedWithMap" in all_swift
 assert "UIApplication.openSettingsURLString" in all_swift

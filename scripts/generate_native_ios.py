@@ -131,6 +131,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     @Published private(set) var country = ""
     @Published private(set) var countryCode = ""
     @Published private(set) var proximityAlertsEnabled = false
+    @Published private(set) var monitoringActive = false
+    @Published private(set) var isUsingCachedLocation = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var lastUpdated: Date?
     @Published private(set) var notificationPermission: UNAuthorizationStatus = .notDetermined
@@ -140,18 +142,20 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     private var lastGeocodeLocation: CLLocation?
     private var hasFreshLocationForAlerts = false
     private var monitoredRisks: [RiskPlace] = trustedRisks
+    private var lastRegionRefreshLocation: CLLocation?
+    private var waitingForAlwaysAuthorization = false
 
     override init() {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
-        manager.distanceFilter = 25
+        manager.distanceFilter = 100
         manager.activityType = .otherNavigation
-        manager.pausesLocationUpdatesAutomatically = false
+        manager.pausesLocationUpdatesAutomatically = true
         authorization = manager.authorizationStatus
         servicesEnabled = CLLocationManager.locationServicesEnabled()
         restoreFreshCache()
-        if hasPermission { manager.startUpdatingLocation(); manager.requestLocation() }
+        if hasPermission { manager.requestLocation() }
         proximityAlertsEnabled = UserDefaults.standard.bool(forKey: "alertsEnabled") && !monitoredRisks.isEmpty
         if proximityAlertsEnabled { restoreProximityAlertsIfAuthorized() }
     }
@@ -169,7 +173,10 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     func requestPermission() {
         servicesEnabled = CLLocationManager.locationServicesEnabled()
         guard servicesEnabled else { errorMessage = "Activez la localisation dans Réglages pour utiliser les risques à proximité."; openSettings(); return }
-        if hasPermission { manager.startUpdatingLocation(); manager.requestLocation() } else if permissionDenied { errorMessage = "Autorisation refusée. Ouvrez Réglages → TravelGuard → Localisation."; openSettings() } else { manager.requestWhenInUseAuthorization() }
+                if hasPermission {
+            manager.requestLocation()
+            if authorization == .authorizedAlways && UserDefaults.standard.bool(forKey: "alertsEnabled") && notificationPermission == .authorized { waitingForAlwaysAuthorization = false }
+        } else if permissionDenied { errorMessage = "Autorisation refusée. Ouvrez Réglages → TravelGuard → Localisation."; openSettings() } else { manager.requestWhenInUseAuthorization() }
     }
 
     private func openSettings() {
@@ -180,7 +187,6 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     func refresh() {
         servicesEnabled = CLLocationManager.locationServicesEnabled()
         guard servicesEnabled, hasPermission else { return }
-        manager.startUpdatingLocation()
         manager.requestLocation()
     }
 
@@ -192,6 +198,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
             return
         }
         proximityAlertsEnabled = true
+        monitoringActive = false
+        waitingForAlwaysAuthorization = authorization != .authorizedAlways
         UserDefaults.standard.set(true, forKey: "alertsEnabled")
         if authorization == .authorizedWhenInUse { manager.requestAlwaysAuthorization() }
         Task {
@@ -199,14 +207,15 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
             let settings = await UNUserNotificationCenter.current().notificationSettings()
             await MainActor.run {
                 self.notificationPermission = settings.authorizationStatus
-                guard granted, settings.authorizationStatus == .authorized, self.authorization == .authorizedAlways else {
+                guard granted, settings.authorizationStatus == .authorized else {
                     self.proximityAlertsEnabled = false
+                    self.monitoringActive = false
                     UserDefaults.standard.set(false, forKey: "alertsEnabled")
-                    self.errorMessage = self.authorization == .authorizedAlways ? "Les notifications sont nécessaires pour les alertes de proximité." : "Les alertes en arrière-plan nécessitent l’autorisation Toujours."
+                    self.errorMessage = "Les notifications sont nécessaires pour les alertes de proximité."
                     return
                 }
-                self.manager.startUpdatingLocation()
-                self.manager.requestLocation()
+                if self.authorization == .authorizedAlways { self.waitingForAlwaysAuthorization = false; self.manager.requestLocation() }
+                else { self.errorMessage = "Autorisez la localisation Toujours pour installer les alertes autour de vous." }
             }
         }
     }
@@ -217,7 +226,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
                 guard let self else { return }
                 self.notificationPermission = settings.authorizationStatus
                 self.manager.monitoredRegions.forEach { self.manager.stopMonitoring(for: $0) }
-                if settings.authorizationStatus == .authorized && self.authorization == .authorizedAlways { self.manager.startUpdatingLocation(); self.manager.requestLocation() }
+                self.monitoringActive = false
+                if settings.authorizationStatus == .authorized && self.authorization == .authorizedAlways { self.waitingForAlwaysAuthorization = false; self.manager.requestLocation() }
             }
         }
     }
@@ -230,23 +240,25 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     /// Called by a future API/offline sync after replacing the authoritative risk set.
     func updateRisks(_ risks: [RiskPlace]) {
         monitoredRisks = risks
-        if risks.isEmpty { manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }; return }
+        if risks.isEmpty { proximityAlertsEnabled = false; monitoringActive = false; UserDefaults.standard.set(false, forKey: "alertsEnabled"); manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }; return }
         if UserDefaults.standard.bool(forKey: "alertsEnabled") && authorization == .authorizedAlways {
             proximityAlertsEnabled = true
-            manager.startUpdatingLocation()
             manager.requestLocation()
         }
     }
 
     private func monitorRiskRegions() {
-        guard authorization == .authorizedAlways, proximityAlertsEnabled, hasFreshLocationForAlerts, let current = coordinate else { return }
+        guard authorization == .authorizedAlways, proximityAlertsEnabled, hasFreshLocationForAlerts, (accuracy ?? 999) <= 200, let current = coordinate else { monitoringActive = false; return }
         let nearby = monitoredRisks
-            .compactMap { risk -> (risk: RiskPlace, distance: CLLocationDistance)? in
+            .compactMap { risk -> (risk: RiskPlace, score: Double)? in
                 guard let distance = risk.distance(from: current), distance <= 10000 else { return nil }
-                let priority = Double(risk.confidenceScore) * 0.55 + Double(max(0, 100 - min(100, Int(distance / 100)))) * 0.25 + Double(min(100, risk.reportCount * 5)) * 0.20
-                return (risk, distance + (10000 - priority * 100))
+                let distanceScore = max(0, 1 - (distance / 10000))
+                let severityScore = min(1, max(0, Double(risk.score) / 100))
+                let confidenceScore = min(1, max(0, Double(risk.confidenceScore) / 100))
+                let monitoringScore = distanceScore * 0.5 + severityScore * 0.3 + confidenceScore * 0.2
+                return (risk, monitoringScore)
             }
-            .sorted { $0.distance < $1.distance }
+            .sorted { $0.score > $1.score }
             .prefix(20)
         let desiredIDs = Set(nearby.map { $0.risk.id })
         manager.monitoredRegions.filter { !desiredIDs.contains($0.identifier) }.forEach { manager.stopMonitoring(for: $0) }
@@ -257,6 +269,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
             region.notifyOnEntry = true
             manager.startMonitoring(for: region)
         }
+        lastRegionRefreshLocation = current
+        monitoringActive = !nearby.isEmpty
     }
 
     private func restoreFreshCache() {
@@ -270,14 +284,15 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         countryCode = UserDefaults.standard.string(forKey: "lastCountryCode") ?? ""
         lastUpdated = timestamp
         accuracy = UserDefaults.standard.object(forKey: "lastLocationAccuracy") as? Double
+        isUsingCachedLocation = true
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorization = manager.authorizationStatus
         servicesEnabled = CLLocationManager.locationServicesEnabled()
         if hasPermission {
-            manager.startUpdatingLocation()
             manager.requestLocation()
+            if authorization == .authorizedAlways && UserDefaults.standard.bool(forKey: "alertsEnabled") && notificationPermission == .authorized { waitingForAlwaysAuthorization = false }
         } else if permissionDenied { errorMessage = "Autorisation refusée. Vous pouvez l’activer dans Réglages." }
     }
 
@@ -286,13 +301,14 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         coordinate = location.coordinate
         accuracy = location.horizontalAccuracy
         lastUpdated = Date()
-        hasFreshLocationForAlerts = true
+        hasFreshLocationForAlerts = location.horizontalAccuracy <= 200
+        isUsingCachedLocation = false
         errorMessage = location.horizontalAccuracy > 200 ? "Position très imprécise (±\(Int(location.horizontalAccuracy)) m) : distances et alertes approximatives." : location.horizontalAccuracy > 100 ? "Position GPS approximative (±\(Int(location.horizontalAccuracy)) m)." : nil
         UserDefaults.standard.set(location.coordinate.latitude, forKey: "lastLatitude")
         UserDefaults.standard.set(location.coordinate.longitude, forKey: "lastLongitude")
         UserDefaults.standard.set(location.horizontalAccuracy, forKey: "lastLocationAccuracy")
         UserDefaults.standard.set(Date(), forKey: "lastLocationTimestamp")
-        if proximityAlertsEnabled { monitorRiskRegions() }
+        if proximityAlertsEnabled, hasFreshLocationForAlerts, (lastRegionRefreshLocation == nil || lastRegionRefreshLocation?.distance(from: location) ?? .greatestFiniteMagnitude >= 500) { monitorRiskRegions() }
         let shouldGeocode = lastGeocodeLocation == nil || (lastGeocodeLocation?.distance(from: location) ?? .greatestFiniteMagnitude) > 2000
         guard shouldGeocode else { return }
         lastGeocodeLocation = location
@@ -348,6 +364,8 @@ final class NetworkMonitor: ObservableObject {
         }
         monitor.start(queue: queue)
     }
+
+    deinit { monitor.cancel() }
 
 }
 
@@ -743,7 +761,7 @@ struct SafetyView: View {
         NavigationStack { ScrollView { VStack(alignment: .leading, spacing: 16) { HStack { VStack(alignment: .leading) { Text("PROTECTION ET RÉFÉRENCES").font(.caption.weight(.heavy)).tracking(1.2).foregroundStyle(TGColor.muted); Text("Sécurité").font(.largeTitle.bold()) }; Spacer(); Label(store.location.hasPermission ? "Position protégée" : "Localisation requise", systemImage: store.location.hasPermission ? "checkmark.shield.fill" : "location.slash").font(.caption.bold()).foregroundStyle(store.location.hasPermission ? .green : TGColor.amber) }
             VStack(alignment: .leading, spacing: 12) { Label("BESOIN D’AIDE ?", systemImage: "shield.fill").font(.caption.weight(.heavy)).foregroundStyle(.white.opacity(0.85)); Text("Gardez vos phrases prêtes.").font(.title2.bold()).foregroundStyle(.white); Text("Affichez une phrase locale sans chercher dans vos réglages.").foregroundStyle(.white.opacity(0.85)); HStack { Button { phraseIndex = (phraseIndex + 1) % sampleSOS.count } label: { Label("Phrase locale", systemImage: "speaker.wave.2.fill") }.buttonStyle(.borderedProminent).tint(.white).foregroundStyle(TGColor.coral); Button { guard let url = URL(string: "tel://\(emergencyNumber)"), UIApplication.shared.canOpenURL(url) else { callError = true; return }; UIApplication.shared.open(url) { success in if !success { Task { @MainActor in callError = true } } } } label: { Label("Secours \(emergencyNumber)", systemImage: "phone.fill") }.buttonStyle(.borderedProminent).tint(.white).foregroundStyle(TGColor.coral) } }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(TGColor.coral).clipShape(RoundedRectangle(cornerRadius: 22))
             VStack(alignment: .leading, spacing: 8) { HStack { Text(sampleSOS[phraseIndex].language).font(.caption.bold()).foregroundStyle(TGColor.teal); Spacer(); Text(store.network.isOnline ? "En ligne" : "Hors ligne").font(.caption.bold()).foregroundStyle(TGColor.muted) }; Text(sampleSOS[phraseIndex].local).font(.title3.bold()); Text(sampleSOS[phraseIndex].translation).foregroundStyle(TGColor.muted) }.tgCard()
-            Text("Réglages de protection").font(.title3.bold()); Toggle("Alertes de proximité", isOn: alertsBinding).tint(TGColor.teal).disabled(trustedRisks.isEmpty).tgCard(); Text(trustedRisks.isEmpty ? "Aucune source géolocalisée fiable · alertes indisponibles" : store.location.proximityAlertsEnabled ? (store.location.notificationPermission == .authorized ? "Alertes activées · régions iOS surveillées" : "Activation en attente de l’autorisation Notifications") : "Alertes désactivées").font(.caption.bold()).foregroundStyle(store.location.proximityAlertsEnabled ? TGColor.teal : TGColor.muted); Text("Les alertes utilisent la surveillance de régions iOS et nécessitent les autorisations de localisation et de notifications. Aucune alerte locale n’est activée sans une source géolocalisée autorisée. Les sources officielles générales sont consultables ci-dessous.").font(.caption).foregroundStyle(TGColor.muted); HStack { Image(systemName: store.network.isOnline ? "wifi" : "wifi.slash").foregroundStyle(store.network.isOnline ? .green : TGColor.amber); VStack(alignment: .leading) { Text("Mode hors ligne automatique").font(.subheadline.bold()); Text(store.network.isChecking ? "Vérification de la connexion…" : store.network.isOnline ? "Connexion active · données locales prêtes" : "Aucune connexion · données locales utilisées").font(.caption).foregroundStyle(TGColor.muted) } }.tgCard()
+            Text("Réglages de protection").font(.title3.bold()); Toggle("Alertes de proximité", isOn: alertsBinding).tint(TGColor.teal).disabled(trustedRisks.isEmpty).tgCard(); Text(trustedRisks.isEmpty ? "Aucune source géolocalisée fiable · alertes indisponibles" : store.location.proximityAlertsEnabled ? (store.location.monitoringActive ? "Alertes actives · régions iOS surveillées" : "Alertes demandées · attente d’une position précise") : "Alertes désactivées").font(.caption.bold()).foregroundStyle(store.location.monitoringActive ? TGColor.teal : TGColor.muted); Text("Les alertes utilisent la surveillance de régions iOS et nécessitent les autorisations de localisation et de notifications. Aucune alerte locale n’est activée sans une source géolocalisée autorisée. Les sources officielles générales sont consultables ci-dessous.").font(.caption).foregroundStyle(TGColor.muted); HStack { Image(systemName: store.network.isOnline ? "wifi" : "wifi.slash").foregroundStyle(store.network.isOnline ? .green : TGColor.amber); VStack(alignment: .leading) { Text("Mode hors ligne automatique").font(.subheadline.bold()); Text(store.network.isChecking ? "Vérification de la connexion…" : store.network.isOnline ? "Connexion active · données locales prêtes" : "Aucune connexion · données locales utilisées").font(.caption).foregroundStyle(TGColor.muted) } }.tgCard()
             Text("Références de prix · \(store.location.city)").font(.title3.bold()); if prices(for: store.location.city).isEmpty { Text("Aucune référence officielle disponible pour cette ville. TravelGuard ne présente pas les données de démonstration comme des tarifs réels.").font(.subheadline).foregroundStyle(TGColor.muted).tgCard() } else { ForEach(prices(for: store.location.city)) { price in HStack { Text(price.label).bold(); Spacer(); Text(price.value) }.tgCard() } }; Text("Sources officielles").font(.title3.bold()); ForEach(officialSources) { source in Button { if let url = URL(string: source.url) { UIApplication.shared.open(url) } } label: { HStack { Image(systemName: "checkmark.seal").foregroundStyle(TGColor.teal); VStack(alignment: .leading) { Text(source.title).font(.subheadline.bold()); Text(source.scope).font(.caption).foregroundStyle(TGColor.muted) }; Spacer(); Image(systemName: "arrow.up.right").foregroundStyle(TGColor.muted) }.tgCard() } }
         }.padding(20).padding(.bottom, 30) }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).onAppear { if trustedRisks.isEmpty { store.location.setProximityAlerts(false) } else if store.location.proximityAlertsEnabled { store.location.restoreProximityAlertsIfAuthorized() } }.alert("Appel indisponible", isPresented: $callError) { Button("OK", role: .cancel) {} } message: { Text("Ce téléphone ne peut pas lancer automatiquement l’appel. Composez le numéro d’urgence local manuellement.") } }
     }
