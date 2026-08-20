@@ -147,7 +147,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         guard authorization == .authorizedAlways, proximityAlertsEnabled, hasFreshLocationForAlerts, (accuracy ?? 999) <= 200, let current = coordinate else { monitoringActive = false; return }
         let nearby = monitoredRisks
             .compactMap { risk -> (risk: RiskPlace, score: Double)? in
-                guard let distance = risk.distance(from: current), distance <= 10000 else { return nil }
+                guard risk.locationPrecision == .point, let distance = risk.distance(from: current), distance <= 10000 else { return nil }
                 let distanceScore = max(0, 1 - (distance / 10000))
                 let severityScore = min(1, max(0, Double(risk.score) / 100))
                 let confidenceScore = min(1, max(0, Double(risk.confidenceScore) / 100))
@@ -296,7 +296,7 @@ final class TravelGuardStore: ObservableObject {
     private let cacheMaxAge: TimeInterval = 365 * 24 * 60 * 60
     @Published private(set) var lastRiskSyncAt: Date?
     private var latestRiskSyncGeneration = 0
-    private let riskRepository: any RiskRepository = RemoteRiskRepository(endpoint: (Bundle.main.object(forInfoDictionaryKey: "RiskFeedURL") as? String).flatMap(URL.init(string:)) )
+    private let riskRepository: any RiskRepository = RemoteRiskRepository(endpoint: (Bundle.main.object(forInfoDictionaryKey: "RiskFeedURL") as? String).flatMap(URL.init(string:)), allowedHost: Bundle.main.object(forInfoDictionaryKey: "RiskFeedAllowedHost") as? String)
     @Published private(set) var riskSyncState = "Aucune source de risques configurée"
     var riskDataFreshnessLabel: String {
         guard let lastRiskSyncAt else { return "Données non synchronisées" }

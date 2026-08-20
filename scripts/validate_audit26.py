@@ -13,7 +13,8 @@ assert "risk.revokedAt == nil" in source
 assert "sourceType: SourceTrust" in source
 assert "RiskEvidence" in source
 assert "risk.alertRadius" in source
-assert "if occupiedCells.insert(cell).inserted" in source
+assert "bestByCell" in source
+assert "candidateRelevance" in source
 assert "|| risk.score >= 80" not in source
 assert "radius: 250" not in source
 assert "manager.stopMonitoring(for: region)" in source

@@ -339,3 +339,16 @@
 - [x] Ajouter fixtures et tests pour OCR, GPS, carte, cache et données
 - [x] Documenter les tests réellement exécutés versus iPhone/Xcode requis
 - [x] Régénérer, valider, empaqueter et publier la version finale
+
+# Corrections Pasted_content_27
+- [x] Corriger validated() pour ne pas rejeter un risque à cause d’une preuve ancienne
+- [x] Limiter taille HTTP, nombre de risques, doublons ID et rayon d’alerte
+- [x] Ajouter source structurée, sourceId, EvidenceType et précision géographique
+- [x] Whitelister HTTPS et domaine du feed, valider Content-Type
+- [x] Ajouter ETag/304, retry sélectif et réponses réseau versionnées
+- [x] Faire choisir le meilleur risque par cellule et stabiliser la grille par zoom
+- [x] Interdire geofencing city/country et réconcilier révocation/expiration/rayon
+- [x] Migrer confidence legacy, valider preuves uniques et cache intégrité
+- [x] Préparer cache régional/viewport et contrat feed paginé
+- [x] Ajouter fixtures JSON et tests HTTP/adversariaux
+- [x] Régénérer, valider, empaqueter et publier la version finale

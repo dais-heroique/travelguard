@@ -109,3 +109,9 @@ Le sandbox ne possède pas Xcode ni un iPhone connecté. Sur le Mac, il faut ouv
 Les contrôles automatisés couvrent désormais le repository typé, le flux distant facultatif, le cache Application Support v2, les dates et risques révoqués, les preuves et sources structurées, les rayons variables, le budget de marqueurs, le parsing multi-montants et les devises supplémentaires. Ils vérifient également que l’absence de feed configuré reste visible au lieu d’être remplacée par des risques inventés.
 
 Les tests suivants nécessitent toujours Xcode et un iPhone réel : compilation Release et signature, caméra et Vision OCR sur des reçus réels, permissions et géofencing après redémarrage, GPS imprécis puis précis en arrière-plan, notifications sur appareil verrouillé, tests de zoom/pan/clustering sur plusieurs latitudes et vérification de la consommation batterie. Ces tests ne peuvent pas être déclarés exécutés depuis le sandbox Linux.
+
+## Audit 27 — feed hostile, géofencing précis et clustering
+
+Les tests déterministes vérifient désormais les doublons d’IDs de risques et de preuves, les rayons négatifs ou supérieurs à 5 km, les réponses HTTP trop volumineuses, Content-Type incorrect, HTTPS et domaine non autorisé, ETag/304, retries bornés, feed expiré ou futur, risque city/country sans géofencing, révocation, changement de rayon et sélection du meilleur risque par cellule.
+
+Les scénarios HTTP réels, le feed signé, la pagination/bbox et la validation de 100 000 risques nécessitent une source de test contrôlée. Les notifications, redémarrages, anti-méridien, zoom/pan et consommation batterie restent à exécuter sur iPhone/Xcode.
