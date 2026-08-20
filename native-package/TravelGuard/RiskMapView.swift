@@ -34,8 +34,8 @@ struct RiskMapView: View {
     private func zoom(by factor: Double) {
         suppressNextCameraChange = true
         hasUserInteractedWithMap = true
-        let nextLatitude = min(max(region.span.latitudeDelta * factor, 0.001), 0.35)
-        let nextLongitude = min(max(region.span.longitudeDelta * factor, 0.001), 0.35)
+        let nextLatitude = min(max(region.span.latitudeDelta * factor, 0.001), 45.0)
+        let nextLongitude = min(max(region.span.longitudeDelta * factor, 0.001), 45.0)
         withAnimation { region.span = MKCoordinateSpan(latitudeDelta: nextLatitude, longitudeDelta: nextLongitude) }
     }
 
@@ -72,4 +72,4 @@ struct FullScreenRiskMapView: View {
     }
 }
 
-struct RiskDetailView: View { let risk: RiskPlace; var body: some View { ScrollView { VStack(alignment: .leading, spacing: 14) { Text(risk.category.uppercased()).font(.caption.bold()).foregroundStyle(TGColor.teal); Text(risk.name).font(.title.bold()); VStack(alignment: .leading, spacing: 4) { Text("Risque : \(risk.severityLabel.capitalized)").font(.headline); Text("Confiance : \(risk.confidenceScore)%").font(.subheadline).foregroundStyle(TGColor.teal) }; Text(risk.summary).foregroundStyle(TGColor.muted); Label("\(risk.reportCount) signalements enregistrés", systemImage: "person.2.fill").font(.subheadline); Text(risk.source).font(.caption).foregroundStyle(TGColor.muted); Text(risk.freshnessLabel).font(.caption).foregroundStyle(TGColor.muted); ForEach(risk.signals, id: \.self) { signal in Text("• \(signal)") }; Spacer() }.padding(24) }.presentationDetents([.medium]) } }
+struct RiskDetailView: View { let risk: RiskPlace; var body: some View { ScrollView { VStack(alignment: .leading, spacing: 14) { Text(risk.category.uppercased()).font(.caption.bold()).foregroundStyle(TGColor.teal); Text(risk.name).font(.title.bold()); VStack(alignment: .leading, spacing: 4) { Text("Risque : \(risk.severityLabel.capitalized)").font(.headline); Text(risk.reliabilityLabel).font(.subheadline).foregroundStyle(TGColor.teal); Text("Calculé à partir de la fraîcheur, de la provenance structurée et des preuves dédupliquées. Ce n’est pas une probabilité statistique.").font(.caption).foregroundStyle(TGColor.muted) }; Text(risk.summary).foregroundStyle(TGColor.muted); Label("\(risk.reportCount) signalements enregistrés", systemImage: "person.2.fill").font(.subheadline); Text(risk.source).font(.caption).foregroundStyle(TGColor.muted); Text(risk.freshnessLabel).font(.caption).foregroundStyle(TGColor.muted); ForEach(risk.signals, id: \.self) { signal in Text("• \(signal)") }; Spacer() }.padding(24) }.presentationDetents([.medium]) } }

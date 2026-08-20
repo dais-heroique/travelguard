@@ -9,6 +9,7 @@ struct RootView: View {
         }
         .tint(TGColor.teal)
         .background(TGColor.ivory.ignoresSafeArea())
+        .task { await store.synchronizeRisks() }
     }
 }
 

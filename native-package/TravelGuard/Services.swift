@@ -161,7 +161,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         for entry in nearby {
             let risk = entry.risk
             guard !manager.monitoredRegions.contains(where: { $0.identifier == risk.id }) else { continue }
-            let region = CLCircularRegion(center: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude), radius: 250, identifier: risk.id)
+            let radius = min(max(risk.alertRadius, 100), 1000)
+            let region = CLCircularRegion(center: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude), radius: radius, identifier: risk.id)
             region.notifyOnEntry = true
             manager.startMonitoring(for: region)
         }
@@ -245,11 +246,14 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         let now = Date()
         if let previous = UserDefaults.standard.object(forKey: cooldownKey) as? Date, now.timeIntervalSince(previous) < 1800 { return }
         UserDefaults.standard.set(now, forKey: cooldownKey)
-        let risk = monitoredRisks.first { $0.id == region.identifier }
+        guard let risk = monitoredRisks.first(where: { $0.id == region.identifier }), risk.revokedAt == nil else {
+            manager.stopMonitoring(for: region)
+            return
+        }
         let content = UNMutableNotificationContent()
-        content.title = risk.map { "Risque \($0.severityLabel) à proximité" } ?? "TravelGuard · vigilance"
-        let distance = risk?.formattedDistance(from: coordinate) ?? "distance inconnue"
-        content.body = risk.map { "\($0.category) · \(distance). Confiance \($0.confidenceScore) %. Vérifiez les prix avant de payer." } ?? "Vous entrez dans une zone signalée. Vérifiez les prix et conditions avant de payer."
+        content.title = "Risque \(risk.severityLabel) à proximité"
+        let distance = risk.formattedDistance(from: coordinate)
+        content.body = "\(risk.category) · \(distance) · \(risk.reliabilityLabel). Source : \(risk.source). \(risk.freshnessLabel). Vérifiez les prix avant de payer."
         content.sound = .default
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "risk-\(region.identifier)", content: content, trigger: nil))
     }
@@ -286,12 +290,14 @@ final class TravelGuardStore: ObservableObject {
     let location = LocationService()
     let network = NetworkMonitor()
     @Published var selectedTab = 0
-    private let riskCacheURL: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("travelguard-risks-v1.json")
+    private let riskCacheURL: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("travelguard-risks-v2.json")
     private let maxCachedRisks = 5000
     private let maxCacheBytes = 2 * 1024 * 1024
     private let cacheMaxAge: TimeInterval = 365 * 24 * 60 * 60
     @Published private(set) var lastRiskSyncAt: Date?
     private var latestRiskSyncGeneration = 0
+    private let riskRepository: any RiskRepository = RemoteRiskRepository(endpoint: (Bundle.main.object(forInfoDictionaryKey: "RiskFeedURL") as? String).flatMap(URL.init(string:)) )
+    @Published private(set) var riskSyncState = "Aucune source de risques configurée"
     var riskDataFreshnessLabel: String {
         guard let lastRiskSyncAt else { return "Données non synchronisées" }
         let minutes = max(0, Int(Date().timeIntervalSince(lastRiskSyncAt) / 60))
@@ -312,21 +318,40 @@ final class TravelGuardStore: ObservableObject {
     init() {
         onboardingComplete = UserDefaults.standard.bool(forKey: "onboardingComplete")
         lastRiskSyncAt = nil
-        if let data = try? Data(contentsOf: riskCacheURL), let envelope = try? JSONDecoder().decode(RiskCacheEnvelope.self, from: data), envelope.schemaVersion == 1, envelope.savedAt <= Date().addingTimeInterval(300), envelope.savedAt >= Date().addingTimeInterval(-cacheMaxAge) { risks = RiskPlace.validated(Array(envelope.risks.prefix(maxCachedRisks))); lastRiskSyncAt = envelope.savedAt } else { risks = trustedRisks }
+        try? FileManager.default.createDirectory(at: riskCacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let data = try? Data(contentsOf: riskCacheURL), let envelope = try? JSONDecoder().decode(RiskCacheEnvelope.self, from: data), envelope.schemaVersion == 2, envelope.savedAt <= Date().addingTimeInterval(300), envelope.savedAt >= Date().addingTimeInterval(-cacheMaxAge) { risks = RiskPlace.validated(Array(envelope.risks.prefix(maxCachedRisks))); lastRiskSyncAt = envelope.savedAt } else { risks = trustedRisks }
         location.updateRisks(risks)
+        location.restoreProximityAlertsIfAuthorized()
     }
 
     func beginRiskSync() -> Int { latestRiskSyncGeneration += 1; return latestRiskSyncGeneration }
 
+    func synchronizeRisks() async {
+        let generation = beginRiskSync()
+        do {
+            let incoming = try await riskRepository.fetchRisks()
+            updateRisks(incoming, generation: generation)
+            riskSyncState = incoming.isEmpty ? "Aucun risque validé reçu" : "Risques synchronisés"
+        } catch {
+            riskSyncState = "Source de risques indisponible"
+        }
+    }
+
     func updateRisks(_ incoming: [RiskPlace], generation: Int? = nil) {
         if let generation, generation < latestRiskSyncGeneration { return }
+        purgeNotificationCooldowns()
         if let generation { latestRiskSyncGeneration = generation }
         let validated = RiskPlace.validated(incoming)
         risks = Array(validated.prefix(maxCachedRisks))
         lastRiskSyncAt = Date()
         location.updateRisks(risks)
-        let envelope = RiskCacheEnvelope(schemaVersion: 1, savedAt: lastRiskSyncAt ?? Date(), risks: risks)
-        if let data = try? JSONEncoder().encode(envelope), data.count <= maxCacheBytes { try? data.write(to: riskCacheURL, options: [.atomic]) }
+        let envelope = RiskCacheEnvelope(schemaVersion: 2, savedAt: lastRiskSyncAt ?? Date(), risks: risks)
+        if let data = try? JSONEncoder().encode(envelope), data.count <= maxCacheBytes, risks.count <= maxCachedRisks { try? data.write(to: riskCacheURL, options: [.atomic]) }
+    }
+
+    private func purgeNotificationCooldowns() {
+        let defaults = UserDefaults.standard
+        defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("travelguard.notificationCooldown.") }.forEach { defaults.removeObject(forKey: $0) }
     }
 
     func completeOnboarding(profile: String, priorities: Set<String>) {

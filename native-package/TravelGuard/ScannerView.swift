@@ -6,7 +6,7 @@ import UIKit
 import Vision
 
 enum OCRSupport {
-    static let amountPattern = #"(?<![0-9])([0-9]{1,3}(?:[ .\u{00A0}][0-9]{3})*(?:[.,][0-9]{1,2})?|[0-9]+(?:[.,][0-9]{1,2})?)\s*(€|EUR|USD|\$|£|GBP|CHF)?"#
+    static let amountPattern = #"(?:(EUR|USD|CHF|GBP|JPY|CZK|PLN|HUF|SEK|NOK|DKK|AED|THB|VND|KRW|MAD|TRY|INR|AUD|NZD|CAD|€|\$|£|¥|₩|د\.إ|฿|₫|₺)\s*)?([0-9]{1,3}(?:[ .\u{00A0}']\s?[0-9]{3})*(?:[.,][0-9]{1,2})?|[0-9]+(?:[.,][0-9]{1,2})?)\s*(EUR|USD|CHF|GBP|JPY|CZK|PLN|HUF|SEK|NOK|DKK|AED|THB|VND|KRW|MAD|TRY|INR|AUD|NZD|CAD|€|\$|£|¥|₩|د\.إ|฿|₫|₺)?"#
     static let labelPattern = #"\b(total|subtotal|sous[- ]?total|amount due|à payer|a payer|taxe?|tva|vat|service|tip|service charge|frais|commission|surcharge|supplement)\b"#
 
     static func normalizeNumber(_ raw: String) -> Double? {
@@ -27,7 +27,7 @@ enum OCRSupport {
     }
 
     static func currency(for countryCode: String) -> String {
-        switch countryCode.uppercased() { case "US", "CA": return "USD"; case "GB": return "GBP"; case "CH": return "CHF"; case "JP": return "JPY"; case "FR", "DE", "ES", "IT", "PT", "BE", "NL", "IE", "AT": return "EUR"; default: return "INCONNUE" }
+        switch countryCode.uppercased() { case "US": return "USD"; case "CA": return "CAD"; case "GB": return "GBP"; case "CH": return "CHF"; case "JP": return "JPY"; case "CZ": return "CZK"; case "PL": return "PLN"; case "HU": return "HUF"; case "SE": return "SEK"; case "NO": return "NOK"; case "DK": return "DKK"; case "AE": return "AED"; case "TH": return "THB"; case "VN": return "VND"; case "KR": return "KRW"; case "MA": return "MAD"; case "TR": return "TRY"; case "IN": return "INR"; case "AU": return "AUD"; case "NZ": return "NZD"; case "FR", "DE", "ES", "IT", "PT", "BE", "NL", "IE", "AT", "FI", "GR": return "EUR"; default: return "INCONNUE" }
     }
 
     static func parse(_ lines: [String], fallbackCurrency: String) -> OCRSummary {
@@ -37,14 +37,19 @@ enum OCRSupport {
             let lower = line.lowercased()
             if lower.range(of: #"\\b[0-9]{1,2}[./-][0-9]{1,2}[./-][0-9]{2,4}\\b"#, options: .regularExpression) != nil { continue }
             let matches = regex?.matches(in: line, range: NSRange(line.startIndex..., in: line)) ?? []
-            guard let match = matches.last, let numberRange = Range(match.range(at: 1), in: line), let value = normalizeNumber(String(line[numberRange])) else { continue }
-            if let symbolRange = Range(match.range(at: 2), in: line), !String(line[symbolRange]).isEmpty { result.currency = String(line[symbolRange]) }
-            result.amounts.append(value)
-            let isTotal = lower.range(of: #"\\b(total|amount due|à payer|a payer)\\b"#, options: .regularExpression) != nil
-            let isSubtotal = lower.range(of: #"\\b(subtotal|sous[- ]?total)\\b"#, options: .regularExpression) != nil
-            let isTax = lower.range(of: #"\\b(taxe?|tva|vat)\\b"#, options: .regularExpression) != nil
-            let isService = lower.range(of: #"\\b(service|tip|service charge|frais|commission|surcharge|supplement)\\b"#, options: .regularExpression) != nil
-            if isTotal { result.total = value } else if isSubtotal { result.subtotal = value } else if isTax { result.tax = value } else if isService { result.service = value } else if !isTotal && !isTax && !isService { result.itemAmounts.append(value) }
+            for match in matches {
+                guard let numberRange = Range(match.range(at: 2), in: line), let value = normalizeNumber(String(line[numberRange])) else { continue }
+                let prefix = Range(match.range(at: 1), in: line).map { String(line[$0]) } ?? ""
+                let suffix = Range(match.range(at: 3), in: line).map { String(line[$0]) } ?? ""
+                let detectedCurrency = !prefix.isEmpty ? prefix : suffix
+                if !detectedCurrency.isEmpty { result.currency = detectedCurrency }
+                result.amounts.append(value)
+                let isTotal = lower.range(of: #"\\b(total|amount due|à payer|a payer)\\b"#, options: .regularExpression) != nil
+                let isSubtotal = lower.range(of: #"\\b(subtotal|sous[- ]?total)\\b"#, options: .regularExpression) != nil
+                let isTax = lower.range(of: #"\\b(taxe?|tva|vat)\\b"#, options: .regularExpression) != nil
+                let isService = lower.range(of: #"\\b(service|tip|service charge|frais|commission|surcharge|supplement)\\b"#, options: .regularExpression) != nil
+                if isTotal { result.total = value } else if isSubtotal { result.subtotal = value } else if isTax { result.tax = value } else if isService { result.service = value } else { result.itemAmounts.append(value) }
+            }
         }
         return result
     }
@@ -73,8 +78,7 @@ struct OCRSummary: Sendable {
     var difference: Double? { guard let total, let calculatedTotal else { return nil }; return total - calculatedTotal }
     var hasData: Bool { !amounts.isEmpty || subtotal != nil || tax != nil || service != nil || total != nil }
     func assessment(suspectLines: Set<String>) -> OCRAssessment {
-        guard hasData, currency != "INCONNUE" else { return .undetermined }
-        if !suspectLines.isEmpty { return .abusive }
+        guard hasData else { return .undetermined }
         if let difference, abs(difference) > 0.05 { return .unusual }
         guard total != nil || subtotal != nil || !itemAmounts.isEmpty else { return .undetermined }
         return .coherent
@@ -102,7 +106,7 @@ struct ScannerView: View {
                 Label(assessment.title, systemImage: assessment.icon).font(.headline).foregroundStyle(assessment == .coherent ? .green : assessment == .abusive ? .red : assessment == .unusual ? TGColor.amber : TGColor.muted)
                 ForEach(recognizedLines, id: \.self) { line in Text(line).font(.body.weight(suspectLines.contains(line) ? .semibold : .regular)).foregroundStyle(suspectLines.contains(line) ? .red : TGColor.ink).padding(.vertical, 3) }
                 if !suspectLines.isEmpty { Text("Vérifiez les frais, taxes, commissions et suppléments avant de payer.").font(.footnote).foregroundStyle(.red) }
-                if summary.hasData { VStack(alignment: .leading, spacing: 6) { Text("Lecture structurée").font(.subheadline.bold()); if !summary.itemAmounts.isEmpty { Text("Articles détectés : \(summary.itemAmounts.reduce(0, +), specifier: \"%.2f\") \(summary.currency)") }; if let subtotal = summary.subtotal { Text("Sous-total indiqué : \(subtotal, specifier: \"%.2f\") \(summary.currency)") }; if let tax = summary.tax { Text("Taxes : \(tax, specifier: \"%.2f\") \(summary.currency)") }; if let service = summary.service { Text("Service : \(service, specifier: \"%.2f\") \(summary.currency)") }; if let total = summary.total { Text("Total détecté : \(total, specifier: \"%.2f\") \(summary.currency)").fontWeight(.bold) }; if let calculated = summary.calculatedTotal, let difference = summary.difference { Text(abs(difference) <= 0.05 ? "Total cohérent avec les lignes détectées : \(calculated, specifier: \"%.2f\") \(summary.currency)" : "Écart arithmétique à vérifier : \(difference, specifier: \"%.2f\") \(summary.currency)").foregroundStyle(abs(difference) <= 0.05 ? .green : .red).font(.footnote.bold()) }; Text("La comparaison à un tarif officiel n’est pas disponible sans source locale autorisée.").font(.caption).foregroundStyle(TGColor.muted) }.padding(.top, 8) }
+                if summary.hasData { VStack(alignment: .leading, spacing: 6) { Text("Lecture structurée").font(.subheadline.bold()); if !summary.itemAmounts.isEmpty { Text("Articles détectés : \(summary.itemAmounts.reduce(0, +), specifier: \"%.2f\") \(summary.currency)") }; if let subtotal = summary.subtotal { Text("Sous-total indiqué : \(subtotal, specifier: \"%.2f\") \(summary.currency)") }; if let tax = summary.tax { Text("Taxes : \(tax, specifier: \"%.2f\") \(summary.currency)") }; if let service = summary.service { Text("Service : \(service, specifier: \"%.2f\") \(summary.currency)") }; if let total = summary.total { Text("Total détecté : \(total, specifier: \"%.2f\") \(summary.currency)").fontWeight(.bold) }; if let calculated = summary.calculatedTotal, let difference = summary.difference { Text(abs(difference) <= 0.05 ? "Total cohérent avec les lignes détectées : \(calculated, specifier: \"%.2f\") \(summary.currency)" : "Écart arithmétique à vérifier : \(difference, specifier: \"%.2f\") \(summary.currency)").foregroundStyle(abs(difference) <= 0.05 ? .green : .red).font(.footnote.bold()) }; Text("Résultat limité au document : le total peut être mathématiquement cohérent sans être un prix juste. Aucune comparaison FairPrice officielle n’est disponible sans source locale autorisée.").font(.caption).foregroundStyle(TGColor.muted) }.padding(.top, 8) }
             }.tgCard() } else if !isAnalyzing { VStack(alignment: .leading, spacing: 8) { Label("Aucun document analysé", systemImage: "viewfinder").font(.headline); Text("Prenez une photo ou choisissez une image pour lancer la détection du texte.").font(.subheadline).foregroundStyle(TGColor.muted) }.tgCard() }
             Label(store.network.isChecking ? "Vérification du réseau…" : store.network.isOnline ? "En ligne · OCR local disponible" : "Hors ligne · OCR local disponible", systemImage: store.network.isOnline ? "wifi" : "wifi.slash").font(.footnote).foregroundStyle(TGColor.muted).padding(.top, 8)
         }.padding(20).padding(.bottom, 30) }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).sheet(isPresented: $showingCamera) { CameraPicker { image in Task { await recognize(image) } } } }
@@ -129,7 +133,12 @@ struct ScannerView: View {
         }.value
         recognizedLines = result.lines.isEmpty ? ["Aucun texte lisible détecté. Rapprochez le document et améliorez la lumière."] : result.lines
         summary = result.summary
-        suspectLines = Set(result.lines.filter { line in line.range(of: OCRSupport.labelPattern, options: .regularExpression) != nil && line.range(of: OCRSupport.amountPattern, options: .regularExpression) != nil })
+        suspectLines = Set(result.lines.filter { line in
+            let lower = line.lowercased()
+            let hasSensitiveLabel = lower.range(of: #"\\b(commission|surcharge|supplement)\\b"#, options: .regularExpression) != nil
+            let hasExtremeAmount = result.summary.amounts.contains { $0 > 1000 }
+            return hasSensitiveLabel && hasExtremeAmount
+        })
         isAnalyzing = false
     }
 }

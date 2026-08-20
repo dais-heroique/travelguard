@@ -2,6 +2,16 @@ import CoreLocation
 import Foundation
 import MapKit
 
+enum SourceTrust: String, Codable, Hashable { case government, officialPartner, verifiedCommunity, unknown }
+
+struct RiskEvidence: Codable, Hashable {
+    let id: String
+    let source: String
+    let type: String
+    let observedAt: Date
+    let verified: Bool
+}
+
 struct RiskPlace: Identifiable, Hashable, Codable {
     static func inViewport(_ region: MKCoordinateRegion, risks: [RiskPlace]) -> [RiskPlace] {
         let latDelta = min(max(region.span.latitudeDelta, 0.0001), 180)
@@ -35,9 +45,11 @@ struct RiskPlace: Identifiable, Hashable, Codable {
         var occupiedCells = Set<String>()
         var selected: [RiskPlace] = []
         for risk in ranked {
-            let cellSize = lonDelta > 60 || latDelta > 60 ? 4.0 : lonDelta > 20 || latDelta > 20 ? 1.0 : 0.15
-            let cell = "\(Int((risk.latitude + 90) / cellSize)):\(Int((risk.longitude + 180) / cellSize))"
-            if occupiedCells.insert(cell).inserted || risk.score >= 80 { selected.append(risk) }
+            let mapPoint = MKMapPoint(CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude))
+            let pointCellWidth = max(256.0, min(4096.0, rect?.width ?? 1024.0) / 24.0)
+            let pointCellHeight = max(256.0, min(4096.0, rect?.height ?? 1024.0) / 24.0)
+            let cell = "\(Int(mapPoint.x / pointCellWidth)):\(Int(mapPoint.y / pointCellHeight))"
+            if occupiedCells.insert(cell).inserted { selected.append(risk) }
             if selected.count >= limit { break }
         }
         return selected
@@ -53,8 +65,9 @@ struct RiskPlace: Identifiable, Hashable, Codable {
             risk.latitude.isFinite && risk.longitude.isFinite &&
             (-90...90).contains(risk.latitude) && (-180...180).contains(risk.longitude) &&
             (0...100).contains(risk.score) && risk.reportCount >= 0 &&
-            risk.updatedAt <= Date().addingTimeInterval(300) && risk.updatedAt >= Date().addingTimeInterval(-10 * 365 * 24 * 60 * 60) &&
-            (0...100).contains(risk.confidenceScore)
+            risk.updatedAt <= Date().addingTimeInterval(300) && risk.updatedAt >= Date().addingTimeInterval(-365 * 24 * 60 * 60) &&
+            risk.revokedAt == nil && !risk.evidence.contains(where: { !$0.observedAt.addingTimeInterval(365 * 24 * 60 * 60).isFuture }) &&
+            (0...100).contains(risk.reliabilityIndex)
         }
     }
 
@@ -69,6 +82,21 @@ struct RiskPlace: Identifiable, Hashable, Codable {
     let source: String
     let updatedAt: Date
     let reportCount: Int
+    let sourceType: SourceTrust
+    let evidence: [RiskEvidence]
+    let alertRadius: CLLocationDistance
+    let revokedAt: Date?
+
+    init(id: String, name: String, category: String, score: Int, summary: String, latitude: Double, longitude: Double, signals: [String] = [], source: String, updatedAt: Date, reportCount: Int = 0, sourceType: SourceTrust = .unknown, evidence: [RiskEvidence] = [], alertRadius: CLLocationDistance = 250, revokedAt: Date? = nil) { self.id = id; self.name = name; self.category = category; self.score = score; self.summary = summary; self.latitude = latitude; self.longitude = longitude; self.signals = signals; self.source = source; self.updatedAt = updatedAt; self.reportCount = reportCount; self.sourceType = sourceType; self.evidence = evidence; self.alertRadius = alertRadius; self.revokedAt = revokedAt }
+
+    enum CodingKeys: String, CodingKey { case id, name, category, score, summary, latitude, longitude, signals, source, updatedAt, reportCount, sourceType, evidence, alertRadius, revokedAt }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id); name = try c.decode(String.self, forKey: .name); category = try c.decode(String.self, forKey: .category)
+        score = try c.decode(Int.self, forKey: .score); summary = try c.decode(String.self, forKey: .summary); latitude = try c.decode(Double.self, forKey: .latitude); longitude = try c.decode(Double.self, forKey: .longitude)
+        signals = try c.decodeIfPresent([String].self, forKey: .signals) ?? []; source = try c.decode(String.self, forKey: .source); updatedAt = try c.decode(Date.self, forKey: .updatedAt); reportCount = try c.decodeIfPresent(Int.self, forKey: .reportCount) ?? 0
+        sourceType = try c.decodeIfPresent(SourceTrust.self, forKey: .sourceType) ?? .unknown; evidence = try c.decodeIfPresent([RiskEvidence].self, forKey: .evidence) ?? []; alertRadius = try c.decodeIfPresent(CLLocationDistance.self, forKey: .alertRadius) ?? 250; revokedAt = try c.decodeIfPresent(Date.self, forKey: .revokedAt)
+    }
 
     func distance(from coordinate: CLLocationCoordinate2D?) -> CLLocationDistance? {
         guard let coordinate else { return nil }
@@ -84,15 +112,19 @@ struct RiskPlace: Identifiable, Hashable, Codable {
     var severityLabel: String {
         switch score { case 0..<25: return "faible"; case 25..<60: return "modéré"; case 60..<80: return "élevé"; default: return "critique" }
     }
-    var confidenceScore: Int {
+    var reliabilityIndex: Int {
         let ageDays = max(0, Calendar.current.dateComponents([.day], from: updatedAt, to: Date()).day ?? 0)
-        let freshness = max(0, 30 - min(ageDays, 30))
-        let reportSignal = min(25, reportCount * 2)
-        let normalizedSource = source.lowercased()
-        let sourceSignal: Int = normalizedSource.contains("ministère") || normalizedSource.contains("government") || normalizedSource.contains("officiel") ? 25 : normalizedSource.contains("partenaire") ? 20 : normalizedSource.contains("communaut") || normalizedSource.contains("verified") ? 10 : 0
-        let evidenceSignal = signals.isEmpty ? 0 : min(20, signals.count * 5)
-        return min(100, max(0, freshness + reportSignal + sourceSignal + evidenceSignal))
+        let freshness = max(0, 35 - min(ageDays, 35))
+        let sourceSignal: Int = { switch sourceType { case .government: return 35; case .officialPartner: return 25; case .verifiedCommunity: return 12; case .unknown: return 0 } }()
+        let uniqueEvidence = Set(evidence.map(\.id)).count
+        let verifiedEvidence = evidence.filter(\.verified).count
+        let evidenceSignal = min(20, uniqueEvidence * 3 + verifiedEvidence * 2)
+        let deduplicatedReports = min(8, max(0, Set(evidence.map(\.source)).count))
+        let reportSignal = min(10, deduplicatedReports)
+        return min(100, max(0, freshness + sourceSignal + evidenceSignal + reportSignal))
     }
+    var confidenceScore: Int { reliabilityIndex }
+    var reliabilityLabel: String { "Indice de fiabilité : \(reliabilityIndex)/100" }
 
     func formattedDistance(from coordinate: CLLocationCoordinate2D?) -> String {
         guard let meters = distance(from: coordinate) else { return "Distance inconnue" }
@@ -106,6 +138,9 @@ struct RiskCacheEnvelope: Codable {
     let savedAt: Date
     let risks: [RiskPlace]
 }
+
+struct RiskFeedEnvelope: Codable { let schemaVersion: Int; let fetchedAt: Date; let risks: [RiskPlace] }
+
 struct FairPrice: Identifiable, Hashable {
     let id: String
     let label: String
@@ -138,6 +173,31 @@ struct OfficialSource: Identifiable, Hashable {
     let title: String
     let scope: String
     let url: String
+}
+
+protocol RiskRepository {
+    func fetchRisks() async throws -> [RiskPlace]
+}
+
+struct RiskRepositoryUnavailable: Error {}
+
+/// No worldwide public risk feed is assumed. The production app stays empty rather than inventing risk data.
+struct UnavailableRiskRepository: RiskRepository {
+    func fetchRisks() async throws -> [RiskPlace] { throw RiskRepositoryUnavailable() }
+}
+
+struct RemoteRiskRepository: RiskRepository {
+    let endpoint: URL?
+    func fetchRisks() async throws -> [RiskPlace] {
+        guard let endpoint else { throw RiskRepositoryUnavailable() }
+        var request = URLRequest(url: endpoint); request.timeoutInterval = 15; request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { throw RiskRepositoryUnavailable() }
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        let feed = try decoder.decode(RiskFeedEnvelope.self, from: data)
+        guard feed.schemaVersion == 1, feed.fetchedAt <= Date().addingTimeInterval(300) else { throw RiskRepositoryUnavailable() }
+        return RiskPlace.validated(feed.risks)
+    }
 }
 
 let officialSources = [

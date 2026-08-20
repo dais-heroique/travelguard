@@ -17,3 +17,11 @@ Dans l’application livrée, `TravelGuardStore.risks` est la source partagée e
 ## Validation honnête
 
 Les contrôles Python vérifient la structure Xcode, les permissions, l’absence de collections de démonstration, le cache versionné, le parsing OCR, les états GPS et les invariants de l’audit 25. La compilation et le test tactile sur iPhone restent des validations à exécuter dans Xcode sur macOS.
+
+## Contrat du feed de risques
+
+Le paquet natif tente au démarrage l’URL `RiskFeedURL` déclarée dans l’Info.plist. Cette valeur est volontairement vide par défaut : aucune API mondiale fiable et universelle n’est présumée. Lorsqu’un opérateur configure une source autorisée, elle doit renvoyer un JSON de la forme suivante : `{"schemaVersion":1,"fetchedAt":"2026-08-20T12:00:00Z","risks":[...]}`. Chaque risque doit inclure une source, un `sourceType` structuré, une date récente, des coordonnées valides, un score borné, un rayon d’alerte et, si disponible, des preuves identifiables et dédupliquées.
+
+Une source de pays ou d’avis général ne doit pas être convertie automatiquement en risque ponctuel de géofencing : cela créerait une fausse précision géographique. Les données non validées, expirées, révoquées, futures au-delà de la tolérance d’horloge ou dépassant les limites de cache sont rejetées.
+
+La version actuelle fonctionne donc correctement hors ligne et sans données inventées, mais l’état « Protection active » ne peut apparaître qu’après fourniture d’un feed autorisé et test de ses notifications sur appareil réel.

@@ -321,3 +321,21 @@
 - [x] Auditer offline, alertes, notifications, navigation, sécurité et performance
 - [x] Ajouter tests déterministes et matrice appareil complète
 - [x] Régénérer, valider, empaqueter et publier la version complète
+
+# Corrections Pasted_content_26
+- [x] Cartographier et traiter les 52 points de l’audit
+- [x] Créer un RiskRepository et une source publique réelle ou un état indisponible honnête
+- [x] Alimenter store, cache et alertes via une seule chaîne de données
+- [x] Déplacer le cache critique vers Application Support et gérer migrations/taille/corruption
+- [x] Corriger le géofencing au redémarrage, les régions supprimées et les cooldowns
+- [x] Structurer preuves, sources, déduplication et rayons par type fiabilité
+- [x] Réduire la validité opérationnelle des risques trop anciens et gérer les dates futures
+- [x] Corriger faux positifs OCR service/TVA, plusieurs montants, devises et formats
+- [x] Séparer arithmétique OCR et FairPrice, implémenter FairPrice ou l’indiquer indisponible
+- [x] Corriger zoom, clustering projeté, budget de markers et rayon par type
+- [x] Unifier carte/accueil/sécurité et rendre distances dynamiques
+- [x] Clarifier l’architecture Expo prototype versus Swift production
+- [x] Ajouter provenance, date, explication de fiabilité et accessibilité carte
+- [x] Ajouter fixtures et tests pour OCR, GPS, carte, cache et données
+- [x] Documenter les tests réellement exécutés versus iPhone/Xcode requis
+- [x] Régénérer, valider, empaqueter et publier la version finale

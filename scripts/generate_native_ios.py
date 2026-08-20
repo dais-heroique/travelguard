@@ -29,6 +29,16 @@ struct TravelGuardApp: App {
 import Foundation
 import MapKit
 
+enum SourceTrust: String, Codable, Hashable { case government, officialPartner, verifiedCommunity, unknown }
+
+struct RiskEvidence: Codable, Hashable {
+    let id: String
+    let source: String
+    let type: String
+    let observedAt: Date
+    let verified: Bool
+}
+
 struct RiskPlace: Identifiable, Hashable, Codable {
     static func inViewport(_ region: MKCoordinateRegion, risks: [RiskPlace]) -> [RiskPlace] {
         let latDelta = min(max(region.span.latitudeDelta, 0.0001), 180)
@@ -62,9 +72,11 @@ struct RiskPlace: Identifiable, Hashable, Codable {
         var occupiedCells = Set<String>()
         var selected: [RiskPlace] = []
         for risk in ranked {
-            let cellSize = lonDelta > 60 || latDelta > 60 ? 4.0 : lonDelta > 20 || latDelta > 20 ? 1.0 : 0.15
-            let cell = "\(Int((risk.latitude + 90) / cellSize)):\(Int((risk.longitude + 180) / cellSize))"
-            if occupiedCells.insert(cell).inserted || risk.score >= 80 { selected.append(risk) }
+            let mapPoint = MKMapPoint(CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude))
+            let pointCellWidth = max(256.0, min(4096.0, rect?.width ?? 1024.0) / 24.0)
+            let pointCellHeight = max(256.0, min(4096.0, rect?.height ?? 1024.0) / 24.0)
+            let cell = "\(Int(mapPoint.x / pointCellWidth)):\(Int(mapPoint.y / pointCellHeight))"
+            if occupiedCells.insert(cell).inserted { selected.append(risk) }
             if selected.count >= limit { break }
         }
         return selected
@@ -80,8 +92,9 @@ struct RiskPlace: Identifiable, Hashable, Codable {
             risk.latitude.isFinite && risk.longitude.isFinite &&
             (-90...90).contains(risk.latitude) && (-180...180).contains(risk.longitude) &&
             (0...100).contains(risk.score) && risk.reportCount >= 0 &&
-            risk.updatedAt <= Date().addingTimeInterval(300) && risk.updatedAt >= Date().addingTimeInterval(-10 * 365 * 24 * 60 * 60) &&
-            (0...100).contains(risk.confidenceScore)
+            risk.updatedAt <= Date().addingTimeInterval(300) && risk.updatedAt >= Date().addingTimeInterval(-365 * 24 * 60 * 60) &&
+            risk.revokedAt == nil && !risk.evidence.contains(where: { !$0.observedAt.addingTimeInterval(365 * 24 * 60 * 60).isFuture }) &&
+            (0...100).contains(risk.reliabilityIndex)
         }
     }
 
@@ -96,6 +109,21 @@ struct RiskPlace: Identifiable, Hashable, Codable {
     let source: String
     let updatedAt: Date
     let reportCount: Int
+    let sourceType: SourceTrust
+    let evidence: [RiskEvidence]
+    let alertRadius: CLLocationDistance
+    let revokedAt: Date?
+
+    init(id: String, name: String, category: String, score: Int, summary: String, latitude: Double, longitude: Double, signals: [String] = [], source: String, updatedAt: Date, reportCount: Int = 0, sourceType: SourceTrust = .unknown, evidence: [RiskEvidence] = [], alertRadius: CLLocationDistance = 250, revokedAt: Date? = nil) { self.id = id; self.name = name; self.category = category; self.score = score; self.summary = summary; self.latitude = latitude; self.longitude = longitude; self.signals = signals; self.source = source; self.updatedAt = updatedAt; self.reportCount = reportCount; self.sourceType = sourceType; self.evidence = evidence; self.alertRadius = alertRadius; self.revokedAt = revokedAt }
+
+    enum CodingKeys: String, CodingKey { case id, name, category, score, summary, latitude, longitude, signals, source, updatedAt, reportCount, sourceType, evidence, alertRadius, revokedAt }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id); name = try c.decode(String.self, forKey: .name); category = try c.decode(String.self, forKey: .category)
+        score = try c.decode(Int.self, forKey: .score); summary = try c.decode(String.self, forKey: .summary); latitude = try c.decode(Double.self, forKey: .latitude); longitude = try c.decode(Double.self, forKey: .longitude)
+        signals = try c.decodeIfPresent([String].self, forKey: .signals) ?? []; source = try c.decode(String.self, forKey: .source); updatedAt = try c.decode(Date.self, forKey: .updatedAt); reportCount = try c.decodeIfPresent(Int.self, forKey: .reportCount) ?? 0
+        sourceType = try c.decodeIfPresent(SourceTrust.self, forKey: .sourceType) ?? .unknown; evidence = try c.decodeIfPresent([RiskEvidence].self, forKey: .evidence) ?? []; alertRadius = try c.decodeIfPresent(CLLocationDistance.self, forKey: .alertRadius) ?? 250; revokedAt = try c.decodeIfPresent(Date.self, forKey: .revokedAt)
+    }
 
     func distance(from coordinate: CLLocationCoordinate2D?) -> CLLocationDistance? {
         guard let coordinate else { return nil }
@@ -111,15 +139,19 @@ struct RiskPlace: Identifiable, Hashable, Codable {
     var severityLabel: String {
         switch score { case 0..<25: return "faible"; case 25..<60: return "modéré"; case 60..<80: return "élevé"; default: return "critique" }
     }
-    var confidenceScore: Int {
+    var reliabilityIndex: Int {
         let ageDays = max(0, Calendar.current.dateComponents([.day], from: updatedAt, to: Date()).day ?? 0)
-        let freshness = max(0, 30 - min(ageDays, 30))
-        let reportSignal = min(25, reportCount * 2)
-        let normalizedSource = source.lowercased()
-        let sourceSignal: Int = normalizedSource.contains("ministère") || normalizedSource.contains("government") || normalizedSource.contains("officiel") ? 25 : normalizedSource.contains("partenaire") ? 20 : normalizedSource.contains("communaut") || normalizedSource.contains("verified") ? 10 : 0
-        let evidenceSignal = signals.isEmpty ? 0 : min(20, signals.count * 5)
-        return min(100, max(0, freshness + reportSignal + sourceSignal + evidenceSignal))
+        let freshness = max(0, 35 - min(ageDays, 35))
+        let sourceSignal: Int = { switch sourceType { case .government: return 35; case .officialPartner: return 25; case .verifiedCommunity: return 12; case .unknown: return 0 } }()
+        let uniqueEvidence = Set(evidence.map(\.id)).count
+        let verifiedEvidence = evidence.filter(\.verified).count
+        let evidenceSignal = min(20, uniqueEvidence * 3 + verifiedEvidence * 2)
+        let deduplicatedReports = min(8, max(0, Set(evidence.map(\.source)).count))
+        let reportSignal = min(10, deduplicatedReports)
+        return min(100, max(0, freshness + sourceSignal + evidenceSignal + reportSignal))
     }
+    var confidenceScore: Int { reliabilityIndex }
+    var reliabilityLabel: String { "Indice de fiabilité : \(reliabilityIndex)/100" }
 
     func formattedDistance(from coordinate: CLLocationCoordinate2D?) -> String {
         guard let meters = distance(from: coordinate) else { return "Distance inconnue" }
@@ -133,6 +165,9 @@ struct RiskCacheEnvelope: Codable {
     let savedAt: Date
     let risks: [RiskPlace]
 }
+
+struct RiskFeedEnvelope: Codable { let schemaVersion: Int; let fetchedAt: Date; let risks: [RiskPlace] }
+
 struct FairPrice: Identifiable, Hashable {
     let id: String
     let label: String
@@ -165,6 +200,31 @@ struct OfficialSource: Identifiable, Hashable {
     let title: String
     let scope: String
     let url: String
+}
+
+protocol RiskRepository {
+    func fetchRisks() async throws -> [RiskPlace]
+}
+
+struct RiskRepositoryUnavailable: Error {}
+
+/// No worldwide public risk feed is assumed. The production app stays empty rather than inventing risk data.
+struct UnavailableRiskRepository: RiskRepository {
+    func fetchRisks() async throws -> [RiskPlace] { throw RiskRepositoryUnavailable() }
+}
+
+struct RemoteRiskRepository: RiskRepository {
+    let endpoint: URL?
+    func fetchRisks() async throws -> [RiskPlace] {
+        guard let endpoint else { throw RiskRepositoryUnavailable() }
+        var request = URLRequest(url: endpoint); request.timeoutInterval = 15; request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { throw RiskRepositoryUnavailable() }
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        let feed = try decoder.decode(RiskFeedEnvelope.self, from: data)
+        guard feed.schemaVersion == 1, feed.fetchedAt <= Date().addingTimeInterval(300) else { throw RiskRepositoryUnavailable() }
+        return RiskPlace.validated(feed.risks)
+    }
 }
 
 let officialSources = [
@@ -344,7 +404,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         for entry in nearby {
             let risk = entry.risk
             guard !manager.monitoredRegions.contains(where: { $0.identifier == risk.id }) else { continue }
-            let region = CLCircularRegion(center: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude), radius: 250, identifier: risk.id)
+            let radius = min(max(risk.alertRadius, 100), 1000)
+            let region = CLCircularRegion(center: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude), radius: radius, identifier: risk.id)
             region.notifyOnEntry = true
             manager.startMonitoring(for: region)
         }
@@ -428,11 +489,14 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         let now = Date()
         if let previous = UserDefaults.standard.object(forKey: cooldownKey) as? Date, now.timeIntervalSince(previous) < 1800 { return }
         UserDefaults.standard.set(now, forKey: cooldownKey)
-        let risk = monitoredRisks.first { $0.id == region.identifier }
+        guard let risk = monitoredRisks.first(where: { $0.id == region.identifier }), risk.revokedAt == nil else {
+            manager.stopMonitoring(for: region)
+            return
+        }
         let content = UNMutableNotificationContent()
-        content.title = risk.map { "Risque \($0.severityLabel) à proximité" } ?? "TravelGuard · vigilance"
-        let distance = risk?.formattedDistance(from: coordinate) ?? "distance inconnue"
-        content.body = risk.map { "\($0.category) · \(distance). Confiance \($0.confidenceScore) %. Vérifiez les prix avant de payer." } ?? "Vous entrez dans une zone signalée. Vérifiez les prix et conditions avant de payer."
+        content.title = "Risque \(risk.severityLabel) à proximité"
+        let distance = risk.formattedDistance(from: coordinate)
+        content.body = "\(risk.category) · \(distance) · \(risk.reliabilityLabel). Source : \(risk.source). \(risk.freshnessLabel). Vérifiez les prix avant de payer."
         content.sound = .default
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "risk-\(region.identifier)", content: content, trigger: nil))
     }
@@ -469,12 +533,14 @@ final class TravelGuardStore: ObservableObject {
     let location = LocationService()
     let network = NetworkMonitor()
     @Published var selectedTab = 0
-    private let riskCacheURL: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("travelguard-risks-v1.json")
+    private let riskCacheURL: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("travelguard-risks-v2.json")
     private let maxCachedRisks = 5000
     private let maxCacheBytes = 2 * 1024 * 1024
     private let cacheMaxAge: TimeInterval = 365 * 24 * 60 * 60
     @Published private(set) var lastRiskSyncAt: Date?
     private var latestRiskSyncGeneration = 0
+    private let riskRepository: any RiskRepository = RemoteRiskRepository(endpoint: (Bundle.main.object(forInfoDictionaryKey: "RiskFeedURL") as? String).flatMap(URL.init(string:)) )
+    @Published private(set) var riskSyncState = "Aucune source de risques configurée"
     var riskDataFreshnessLabel: String {
         guard let lastRiskSyncAt else { return "Données non synchronisées" }
         let minutes = max(0, Int(Date().timeIntervalSince(lastRiskSyncAt) / 60))
@@ -495,21 +561,40 @@ final class TravelGuardStore: ObservableObject {
     init() {
         onboardingComplete = UserDefaults.standard.bool(forKey: "onboardingComplete")
         lastRiskSyncAt = nil
-        if let data = try? Data(contentsOf: riskCacheURL), let envelope = try? JSONDecoder().decode(RiskCacheEnvelope.self, from: data), envelope.schemaVersion == 1, envelope.savedAt <= Date().addingTimeInterval(300), envelope.savedAt >= Date().addingTimeInterval(-cacheMaxAge) { risks = RiskPlace.validated(Array(envelope.risks.prefix(maxCachedRisks))); lastRiskSyncAt = envelope.savedAt } else { risks = trustedRisks }
+        try? FileManager.default.createDirectory(at: riskCacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let data = try? Data(contentsOf: riskCacheURL), let envelope = try? JSONDecoder().decode(RiskCacheEnvelope.self, from: data), envelope.schemaVersion == 2, envelope.savedAt <= Date().addingTimeInterval(300), envelope.savedAt >= Date().addingTimeInterval(-cacheMaxAge) { risks = RiskPlace.validated(Array(envelope.risks.prefix(maxCachedRisks))); lastRiskSyncAt = envelope.savedAt } else { risks = trustedRisks }
         location.updateRisks(risks)
+        location.restoreProximityAlertsIfAuthorized()
     }
 
     func beginRiskSync() -> Int { latestRiskSyncGeneration += 1; return latestRiskSyncGeneration }
 
+    func synchronizeRisks() async {
+        let generation = beginRiskSync()
+        do {
+            let incoming = try await riskRepository.fetchRisks()
+            updateRisks(incoming, generation: generation)
+            riskSyncState = incoming.isEmpty ? "Aucun risque validé reçu" : "Risques synchronisés"
+        } catch {
+            riskSyncState = "Source de risques indisponible"
+        }
+    }
+
     func updateRisks(_ incoming: [RiskPlace], generation: Int? = nil) {
         if let generation, generation < latestRiskSyncGeneration { return }
+        purgeNotificationCooldowns()
         if let generation { latestRiskSyncGeneration = generation }
         let validated = RiskPlace.validated(incoming)
         risks = Array(validated.prefix(maxCachedRisks))
         lastRiskSyncAt = Date()
         location.updateRisks(risks)
-        let envelope = RiskCacheEnvelope(schemaVersion: 1, savedAt: lastRiskSyncAt ?? Date(), risks: risks)
-        if let data = try? JSONEncoder().encode(envelope), data.count <= maxCacheBytes { try? data.write(to: riskCacheURL, options: [.atomic]) }
+        let envelope = RiskCacheEnvelope(schemaVersion: 2, savedAt: lastRiskSyncAt ?? Date(), risks: risks)
+        if let data = try? JSONEncoder().encode(envelope), data.count <= maxCacheBytes, risks.count <= maxCachedRisks { try? data.write(to: riskCacheURL, options: [.atomic]) }
+    }
+
+    private func purgeNotificationCooldowns() {
+        let defaults = UserDefaults.standard
+        defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("travelguard.notificationCooldown.") }.forEach { defaults.removeObject(forKey: $0) }
     }
 
     func completeOnboarding(profile: String, priorities: Set<String>) {
@@ -551,6 +636,7 @@ struct RootView: View {
         }
         .tint(TGColor.teal)
         .background(TGColor.ivory.ignoresSafeArea())
+        .task { await store.synchronizeRisks() }
     }
 }
 
@@ -696,8 +782,8 @@ struct RiskMapView: View {
     private func zoom(by factor: Double) {
         suppressNextCameraChange = true
         hasUserInteractedWithMap = true
-        let nextLatitude = min(max(region.span.latitudeDelta * factor, 0.001), 0.35)
-        let nextLongitude = min(max(region.span.longitudeDelta * factor, 0.001), 0.35)
+        let nextLatitude = min(max(region.span.latitudeDelta * factor, 0.001), 45.0)
+        let nextLongitude = min(max(region.span.longitudeDelta * factor, 0.001), 45.0)
         withAnimation { region.span = MKCoordinateSpan(latitudeDelta: nextLatitude, longitudeDelta: nextLongitude) }
     }
 
@@ -734,7 +820,7 @@ struct FullScreenRiskMapView: View {
     }
 }
 
-struct RiskDetailView: View { let risk: RiskPlace; var body: some View { ScrollView { VStack(alignment: .leading, spacing: 14) { Text(risk.category.uppercased()).font(.caption.bold()).foregroundStyle(TGColor.teal); Text(risk.name).font(.title.bold()); VStack(alignment: .leading, spacing: 4) { Text("Risque : \(risk.severityLabel.capitalized)").font(.headline); Text("Confiance : \(risk.confidenceScore)%").font(.subheadline).foregroundStyle(TGColor.teal) }; Text(risk.summary).foregroundStyle(TGColor.muted); Label("\(risk.reportCount) signalements enregistrés", systemImage: "person.2.fill").font(.subheadline); Text(risk.source).font(.caption).foregroundStyle(TGColor.muted); Text(risk.freshnessLabel).font(.caption).foregroundStyle(TGColor.muted); ForEach(risk.signals, id: \.self) { signal in Text("• \(signal)") }; Spacer() }.padding(24) }.presentationDetents([.medium]) } }
+struct RiskDetailView: View { let risk: RiskPlace; var body: some View { ScrollView { VStack(alignment: .leading, spacing: 14) { Text(risk.category.uppercased()).font(.caption.bold()).foregroundStyle(TGColor.teal); Text(risk.name).font(.title.bold()); VStack(alignment: .leading, spacing: 4) { Text("Risque : \(risk.severityLabel.capitalized)").font(.headline); Text(risk.reliabilityLabel).font(.subheadline).foregroundStyle(TGColor.teal); Text("Calculé à partir de la fraîcheur, de la provenance structurée et des preuves dédupliquées. Ce n’est pas une probabilité statistique.").font(.caption).foregroundStyle(TGColor.muted) }; Text(risk.summary).foregroundStyle(TGColor.muted); Label("\(risk.reportCount) signalements enregistrés", systemImage: "person.2.fill").font(.subheadline); Text(risk.source).font(.caption).foregroundStyle(TGColor.muted); Text(risk.freshnessLabel).font(.caption).foregroundStyle(TGColor.muted); ForEach(risk.signals, id: \.self) { signal in Text("• \(signal)") }; Spacer() }.padding(24) }.presentationDetents([.medium]) } }
 ''',
 'ScannerView.swift': r'''import CoreImage
 import Foundation
@@ -744,7 +830,7 @@ import UIKit
 import Vision
 
 enum OCRSupport {
-    static let amountPattern = #"(?<![0-9])([0-9]{1,3}(?:[ .\u{00A0}][0-9]{3})*(?:[.,][0-9]{1,2})?|[0-9]+(?:[.,][0-9]{1,2})?)\s*(€|EUR|USD|\$|£|GBP|CHF)?"#
+    static let amountPattern = #"(?:(EUR|USD|CHF|GBP|JPY|CZK|PLN|HUF|SEK|NOK|DKK|AED|THB|VND|KRW|MAD|TRY|INR|AUD|NZD|CAD|€|\$|£|¥|₩|د\.إ|฿|₫|₺)\s*)?([0-9]{1,3}(?:[ .\u{00A0}']\s?[0-9]{3})*(?:[.,][0-9]{1,2})?|[0-9]+(?:[.,][0-9]{1,2})?)\s*(EUR|USD|CHF|GBP|JPY|CZK|PLN|HUF|SEK|NOK|DKK|AED|THB|VND|KRW|MAD|TRY|INR|AUD|NZD|CAD|€|\$|£|¥|₩|د\.إ|฿|₫|₺)?"#
     static let labelPattern = #"\b(total|subtotal|sous[- ]?total|amount due|à payer|a payer|taxe?|tva|vat|service|tip|service charge|frais|commission|surcharge|supplement)\b"#
 
     static func normalizeNumber(_ raw: String) -> Double? {
@@ -765,7 +851,7 @@ enum OCRSupport {
     }
 
     static func currency(for countryCode: String) -> String {
-        switch countryCode.uppercased() { case "US", "CA": return "USD"; case "GB": return "GBP"; case "CH": return "CHF"; case "JP": return "JPY"; case "FR", "DE", "ES", "IT", "PT", "BE", "NL", "IE", "AT": return "EUR"; default: return "INCONNUE" }
+        switch countryCode.uppercased() { case "US": return "USD"; case "CA": return "CAD"; case "GB": return "GBP"; case "CH": return "CHF"; case "JP": return "JPY"; case "CZ": return "CZK"; case "PL": return "PLN"; case "HU": return "HUF"; case "SE": return "SEK"; case "NO": return "NOK"; case "DK": return "DKK"; case "AE": return "AED"; case "TH": return "THB"; case "VN": return "VND"; case "KR": return "KRW"; case "MA": return "MAD"; case "TR": return "TRY"; case "IN": return "INR"; case "AU": return "AUD"; case "NZ": return "NZD"; case "FR", "DE", "ES", "IT", "PT", "BE", "NL", "IE", "AT", "FI", "GR": return "EUR"; default: return "INCONNUE" }
     }
 
     static func parse(_ lines: [String], fallbackCurrency: String) -> OCRSummary {
@@ -775,14 +861,19 @@ enum OCRSupport {
             let lower = line.lowercased()
             if lower.range(of: #"\\b[0-9]{1,2}[./-][0-9]{1,2}[./-][0-9]{2,4}\\b"#, options: .regularExpression) != nil { continue }
             let matches = regex?.matches(in: line, range: NSRange(line.startIndex..., in: line)) ?? []
-            guard let match = matches.last, let numberRange = Range(match.range(at: 1), in: line), let value = normalizeNumber(String(line[numberRange])) else { continue }
-            if let symbolRange = Range(match.range(at: 2), in: line), !String(line[symbolRange]).isEmpty { result.currency = String(line[symbolRange]) }
-            result.amounts.append(value)
-            let isTotal = lower.range(of: #"\\b(total|amount due|à payer|a payer)\\b"#, options: .regularExpression) != nil
-            let isSubtotal = lower.range(of: #"\\b(subtotal|sous[- ]?total)\\b"#, options: .regularExpression) != nil
-            let isTax = lower.range(of: #"\\b(taxe?|tva|vat)\\b"#, options: .regularExpression) != nil
-            let isService = lower.range(of: #"\\b(service|tip|service charge|frais|commission|surcharge|supplement)\\b"#, options: .regularExpression) != nil
-            if isTotal { result.total = value } else if isSubtotal { result.subtotal = value } else if isTax { result.tax = value } else if isService { result.service = value } else if !isTotal && !isTax && !isService { result.itemAmounts.append(value) }
+            for match in matches {
+                guard let numberRange = Range(match.range(at: 2), in: line), let value = normalizeNumber(String(line[numberRange])) else { continue }
+                let prefix = Range(match.range(at: 1), in: line).map { String(line[$0]) } ?? ""
+                let suffix = Range(match.range(at: 3), in: line).map { String(line[$0]) } ?? ""
+                let detectedCurrency = !prefix.isEmpty ? prefix : suffix
+                if !detectedCurrency.isEmpty { result.currency = detectedCurrency }
+                result.amounts.append(value)
+                let isTotal = lower.range(of: #"\\b(total|amount due|à payer|a payer)\\b"#, options: .regularExpression) != nil
+                let isSubtotal = lower.range(of: #"\\b(subtotal|sous[- ]?total)\\b"#, options: .regularExpression) != nil
+                let isTax = lower.range(of: #"\\b(taxe?|tva|vat)\\b"#, options: .regularExpression) != nil
+                let isService = lower.range(of: #"\\b(service|tip|service charge|frais|commission|surcharge|supplement)\\b"#, options: .regularExpression) != nil
+                if isTotal { result.total = value } else if isSubtotal { result.subtotal = value } else if isTax { result.tax = value } else if isService { result.service = value } else { result.itemAmounts.append(value) }
+            }
         }
         return result
     }
@@ -811,8 +902,7 @@ struct OCRSummary: Sendable {
     var difference: Double? { guard let total, let calculatedTotal else { return nil }; return total - calculatedTotal }
     var hasData: Bool { !amounts.isEmpty || subtotal != nil || tax != nil || service != nil || total != nil }
     func assessment(suspectLines: Set<String>) -> OCRAssessment {
-        guard hasData, currency != "INCONNUE" else { return .undetermined }
-        if !suspectLines.isEmpty { return .abusive }
+        guard hasData else { return .undetermined }
         if let difference, abs(difference) > 0.05 { return .unusual }
         guard total != nil || subtotal != nil || !itemAmounts.isEmpty else { return .undetermined }
         return .coherent
@@ -840,7 +930,7 @@ struct ScannerView: View {
                 Label(assessment.title, systemImage: assessment.icon).font(.headline).foregroundStyle(assessment == .coherent ? .green : assessment == .abusive ? .red : assessment == .unusual ? TGColor.amber : TGColor.muted)
                 ForEach(recognizedLines, id: \.self) { line in Text(line).font(.body.weight(suspectLines.contains(line) ? .semibold : .regular)).foregroundStyle(suspectLines.contains(line) ? .red : TGColor.ink).padding(.vertical, 3) }
                 if !suspectLines.isEmpty { Text("Vérifiez les frais, taxes, commissions et suppléments avant de payer.").font(.footnote).foregroundStyle(.red) }
-                if summary.hasData { VStack(alignment: .leading, spacing: 6) { Text("Lecture structurée").font(.subheadline.bold()); if !summary.itemAmounts.isEmpty { Text("Articles détectés : \(summary.itemAmounts.reduce(0, +), specifier: \"%.2f\") \(summary.currency)") }; if let subtotal = summary.subtotal { Text("Sous-total indiqué : \(subtotal, specifier: \"%.2f\") \(summary.currency)") }; if let tax = summary.tax { Text("Taxes : \(tax, specifier: \"%.2f\") \(summary.currency)") }; if let service = summary.service { Text("Service : \(service, specifier: \"%.2f\") \(summary.currency)") }; if let total = summary.total { Text("Total détecté : \(total, specifier: \"%.2f\") \(summary.currency)").fontWeight(.bold) }; if let calculated = summary.calculatedTotal, let difference = summary.difference { Text(abs(difference) <= 0.05 ? "Total cohérent avec les lignes détectées : \(calculated, specifier: \"%.2f\") \(summary.currency)" : "Écart arithmétique à vérifier : \(difference, specifier: \"%.2f\") \(summary.currency)").foregroundStyle(abs(difference) <= 0.05 ? .green : .red).font(.footnote.bold()) }; Text("La comparaison à un tarif officiel n’est pas disponible sans source locale autorisée.").font(.caption).foregroundStyle(TGColor.muted) }.padding(.top, 8) }
+                if summary.hasData { VStack(alignment: .leading, spacing: 6) { Text("Lecture structurée").font(.subheadline.bold()); if !summary.itemAmounts.isEmpty { Text("Articles détectés : \(summary.itemAmounts.reduce(0, +), specifier: \"%.2f\") \(summary.currency)") }; if let subtotal = summary.subtotal { Text("Sous-total indiqué : \(subtotal, specifier: \"%.2f\") \(summary.currency)") }; if let tax = summary.tax { Text("Taxes : \(tax, specifier: \"%.2f\") \(summary.currency)") }; if let service = summary.service { Text("Service : \(service, specifier: \"%.2f\") \(summary.currency)") }; if let total = summary.total { Text("Total détecté : \(total, specifier: \"%.2f\") \(summary.currency)").fontWeight(.bold) }; if let calculated = summary.calculatedTotal, let difference = summary.difference { Text(abs(difference) <= 0.05 ? "Total cohérent avec les lignes détectées : \(calculated, specifier: \"%.2f\") \(summary.currency)" : "Écart arithmétique à vérifier : \(difference, specifier: \"%.2f\") \(summary.currency)").foregroundStyle(abs(difference) <= 0.05 ? .green : .red).font(.footnote.bold()) }; Text("Résultat limité au document : le total peut être mathématiquement cohérent sans être un prix juste. Aucune comparaison FairPrice officielle n’est disponible sans source locale autorisée.").font(.caption).foregroundStyle(TGColor.muted) }.padding(.top, 8) }
             }.tgCard() } else if !isAnalyzing { VStack(alignment: .leading, spacing: 8) { Label("Aucun document analysé", systemImage: "viewfinder").font(.headline); Text("Prenez une photo ou choisissez une image pour lancer la détection du texte.").font(.subheadline).foregroundStyle(TGColor.muted) }.tgCard() }
             Label(store.network.isChecking ? "Vérification du réseau…" : store.network.isOnline ? "En ligne · OCR local disponible" : "Hors ligne · OCR local disponible", systemImage: store.network.isOnline ? "wifi" : "wifi.slash").font(.footnote).foregroundStyle(TGColor.muted).padding(.top, 8)
         }.padding(20).padding(.bottom, 30) }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).sheet(isPresented: $showingCamera) { CameraPicker { image in Task { await recognize(image) } } } }
@@ -867,7 +957,12 @@ struct ScannerView: View {
         }.value
         recognizedLines = result.lines.isEmpty ? ["Aucun texte lisible détecté. Rapprochez le document et améliorez la lumière."] : result.lines
         summary = result.summary
-        suspectLines = Set(result.lines.filter { line in line.range(of: OCRSupport.labelPattern, options: .regularExpression) != nil && line.range(of: OCRSupport.amountPattern, options: .regularExpression) != nil })
+        suspectLines = Set(result.lines.filter { line in
+            let lower = line.lowercased()
+            let hasSensitiveLabel = lower.range(of: #"\\b(commission|surcharge|supplement)\\b"#, options: .regularExpression) != nil
+            let hasExtremeAmount = result.summary.amounts.contains { $0 > 1000 }
+            return hasSensitiveLabel && hasExtremeAmount
+        })
         isAnalyzing = false
     }
 }
@@ -907,7 +1002,7 @@ struct SafetyView: View {
             VStack(alignment: .leading, spacing: 12) { Label("BESOIN D’AIDE ?", systemImage: "shield.fill").font(.caption.weight(.heavy)).foregroundStyle(.white.opacity(0.85)); Text("Gardez vos phrases prêtes.").font(.title2.bold()).foregroundStyle(.white); Text("Affichez une phrase locale sans chercher dans vos réglages.").foregroundStyle(.white.opacity(0.85)); HStack { Button { phraseIndex = (phraseIndex + 1) % sampleSOS.count } label: { Label("Phrase locale", systemImage: "speaker.wave.2.fill") }.buttonStyle(.borderedProminent).tint(.white).foregroundStyle(TGColor.coral); Button { guard let url = URL(string: "tel://\(emergencyNumber)"), UIApplication.shared.canOpenURL(url) else { callError = true; return }; UIApplication.shared.open(url) { success in if !success { Task { @MainActor in callError = true } } } } label: { Label("Secours \(emergencyNumber)", systemImage: "phone.fill") }.buttonStyle(.borderedProminent).tint(.white).foregroundStyle(TGColor.coral) } }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(TGColor.coral).clipShape(RoundedRectangle(cornerRadius: 22))
             VStack(alignment: .leading, spacing: 8) { HStack { Text(sampleSOS[phraseIndex].language).font(.caption.bold()).foregroundStyle(TGColor.teal); Spacer(); Text(store.network.isOnline ? "En ligne" : "Hors ligne").font(.caption.bold()).foregroundStyle(TGColor.muted) }; Text(sampleSOS[phraseIndex].local).font(.title3.bold()); Text(sampleSOS[phraseIndex].translation).foregroundStyle(TGColor.muted) }.tgCard()
             Text("Réglages de protection").font(.title3.bold()); Toggle("Alertes de proximité", isOn: alertsBinding).tint(TGColor.teal).disabled(store.risks.isEmpty).tgCard(); Text(store.risks.isEmpty ? "Aucune source géolocalisée fiable · alertes indisponibles" : store.location.proximityAlertsEnabled ? (store.location.notificationPermission != .authorized ? "Alertes indisponibles · notifications désactivées" : store.location.monitoringActive ? "Alertes actives · régions iOS surveillées" : "Alertes prêtes · aucun risque pertinent à proximité") : "Alertes désactivées").font(.caption.bold()).foregroundStyle(store.location.monitoringActive ? TGColor.teal : TGColor.muted); Text(store.riskDataFreshnessLabel).font(.caption.bold()).foregroundStyle(store.riskDataIsStale ? TGColor.amber : TGColor.muted); Text("Les alertes utilisent la surveillance de régions iOS et nécessitent les autorisations de localisation et de notifications. Aucune alerte locale n’est activée sans une source géolocalisée autorisée. Les sources officielles générales sont consultables ci-dessous.").font(.caption).foregroundStyle(TGColor.muted); HStack { Image(systemName: store.network.isOnline ? "wifi" : "wifi.slash").foregroundStyle(store.network.isOnline ? .green : TGColor.amber); VStack(alignment: .leading) { Text("Mode hors ligne automatique").font(.subheadline.bold()); Text(store.network.isChecking ? "Vérification de la connexion…" : store.network.isOnline ? "Connexion active · données locales prêtes" : "Aucune connexion · données locales utilisées").font(.caption).foregroundStyle(TGColor.muted) } }.tgCard()
-            Text("Références de prix · \(store.location.city)").font(.title3.bold()); if prices(for: store.location.city).isEmpty { Text("Aucune référence officielle disponible pour cette ville. TravelGuard ne présente pas les données de démonstration comme des tarifs réels et ne convertit pas un prix sans devise et source autorisées.").font(.subheadline).foregroundStyle(TGColor.muted).tgCard() } else { ForEach(prices(for: store.location.city)) { price in HStack { Text(price.label).bold(); Spacer(); Text(price.value) }.tgCard() } }; Text("Sources officielles").font(.title3.bold()); ForEach(officialSources) { source in Button { if let url = URL(string: source.url) { UIApplication.shared.open(url) } } label: { HStack { Image(systemName: "checkmark.seal").foregroundStyle(TGColor.teal); VStack(alignment: .leading) { Text(source.title).font(.subheadline.bold()); Text(source.scope).font(.caption).foregroundStyle(TGColor.muted) }; Spacer(); Image(systemName: "arrow.up.right").foregroundStyle(TGColor.muted) }.tgCard() } }
+            Text("Références de prix · \(store.location.city)").font(.title3.bold()); if prices(for: store.location.city).isEmpty { Text("Cette fonctionnalité n’est pas disponible pour cette ville sans source FairPrice autorisée. TravelGuard ne fabrique pas de tarif et ne convertit pas un prix sans devise et source autorisées.").font(.subheadline).foregroundStyle(TGColor.muted).tgCard() } else { ForEach(prices(for: store.location.city)) { price in HStack { Text(price.label).bold(); Spacer(); Text(price.value) }.tgCard() } }; Text("Sources officielles").font(.title3.bold()); ForEach(officialSources) { source in Button { if let url = URL(string: source.url) { UIApplication.shared.open(url) } } label: { HStack { Image(systemName: "checkmark.seal").foregroundStyle(TGColor.teal); VStack(alignment: .leading) { Text(source.title).font(.subheadline.bold()); Text(source.scope).font(.caption).foregroundStyle(TGColor.muted) }; Spacer(); Image(systemName: "arrow.up.right").foregroundStyle(TGColor.muted) }.tgCard() } }
         }.padding(20).padding(.bottom, 30) }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).onAppear { if store.risks.isEmpty { store.location.setProximityAlerts(false) } else if store.location.proximityAlertsEnabled { store.location.restoreProximityAlertsIfAuthorized() } }.alert("Appel indisponible", isPresented: $callError) { Button("OK", role: .cancel) {} } message: { Text("Ce téléphone ne peut pas lancer automatiquement l’appel. Composez le numéro d’urgence local manuellement.") } }
     }
 }
@@ -923,6 +1018,7 @@ struct SafetyView: View {
 <key>CFBundleShortVersionString</key><string>1.0</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>LSRequiresIPhoneOS</key><true/>
+<key>RiskFeedURL</key><string></string>
 <key>NSCameraUsageDescription</key><string>TravelGuard utilise la caméra pour scanner les menus, additions et billets.</string>
 <key>NSLocationWhenInUseUsageDescription</key><string>TravelGuard utilise votre position pour afficher les risques et tarifs autour de vous.</string>
 <key>NSLocationAlwaysAndWhenInUseUsageDescription</key><string>TravelGuard peut surveiller les zones signalées en arrière-plan uniquement si vous activez explicitement les alertes de proximité.</string>

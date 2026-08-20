@@ -103,3 +103,9 @@ Le sandbox ne possède pas Xcode ni un iPhone connecté. Sur le Mac, il faut ouv
 | Zoom, pan, viewport, anti-méridien et densité sur iPhone | Oui | Non | Oui |
 | Géofencing arrière-plan, écran verrouillé et redémarrage iPhone | Oui | Non | Oui |
 | Compilation Release et signature dans Xcode | Oui | Non | Oui |
+
+## Audit 26 — données réelles, monde entier et limites de validation
+
+Les contrôles automatisés couvrent désormais le repository typé, le flux distant facultatif, le cache Application Support v2, les dates et risques révoqués, les preuves et sources structurées, les rayons variables, le budget de marqueurs, le parsing multi-montants et les devises supplémentaires. Ils vérifient également que l’absence de feed configuré reste visible au lieu d’être remplacée par des risques inventés.
+
+Les tests suivants nécessitent toujours Xcode et un iPhone réel : compilation Release et signature, caméra et Vision OCR sur des reçus réels, permissions et géofencing après redémarrage, GPS imprécis puis précis en arrière-plan, notifications sur appareil verrouillé, tests de zoom/pan/clustering sur plusieurs latitudes et vérification de la consommation batterie. Ces tests ne peuvent pas être déclarés exécutés depuis le sandbox Linux.
