@@ -308,3 +308,16 @@
 - [x] Auditer les états OCR et les devises/FairPrice
 - [x] Ajouter les tests déterministes et appareil de l’audit 24
 - [x] Régénérer, valider et publier la version corrigée
+
+# Corrections Pasted_content_25
+- [x] Lire les sections restantes et cartographier tous les bugs
+- [x] Supprimer tout faux résultat scanner et brancher le vrai OCR local
+- [x] Gérer caméra, permissions, photo capturée, erreurs et états unknown/error
+- [x] Unifier ou désactiver clairement l’ancienne architecture Expo carte
+- [x] Filtrer les risques réellement par distance et viewport
+- [x] Synchroniser filtre, sélection, liste, carte et zoom
+- [x] Préparer clustering et plafonnement avant rendu natif
+- [x] Renforcer confiance, provenance, fraîcheur et validation des données
+- [x] Auditer offline, alertes, notifications, navigation, sécurité et performance
+- [x] Ajouter tests déterministes et matrice appareil complète
+- [x] Régénérer, valider, empaqueter et publier la version complète

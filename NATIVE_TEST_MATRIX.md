@@ -89,3 +89,17 @@ Le sandbox ne possède pas Xcode ni un iPhone connecté. Sur le Mac, il faut ouv
 | Accueil et Sécurité | Le même statut Protection active/partielle/GPS imprécis/données anciennes est affiché | Appareil/Xcode |
 | OCR sans prix, devise inconnue, écart de total ou libellés sensibles | Résultat explicite : impossible à déterminer, inhabituel ou probablement abusif ; aucune certitude officielle | Test déterministe + appareil |
 | Référence FairPrice sans devise/source autorisée | Aucune conversion ni comparaison n’est présentée | Test déterministe |
+
+## Audit 25 — frontière Expo/native et tests de non-régression
+
+| Test | Écrit | Exécuté dans le sandbox | iPhone/Xcode requis |
+|---|---:|---:|---:|
+| Scanner Expo sans faux `setTimeout` ni conclusion de prix | Oui | Oui | Non |
+| Capture Expo conservée seulement comme photo, sans analyse inventée | Oui | Oui | Non |
+| Collections RN de risques et tarifs statiques vides | Oui | Oui | Non |
+| Carte Expo explicitement non canonique | Oui | Oui | Non |
+| Validation native du cache, viewport, source, OCR et statut de protection | Oui | Oui | Non |
+| OCR Vision sur photo réelle, caméra refusée, image floue, devise inconnue | Oui | Non | Oui |
+| Zoom, pan, viewport, anti-méridien et densité sur iPhone | Oui | Non | Oui |
+| Géofencing arrière-plan, écran verrouillé et redémarrage iPhone | Oui | Non | Oui |
+| Compilation Release et signature dans Xcode | Oui | Non | Oui |
