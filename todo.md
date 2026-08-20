@@ -365,4 +365,4 @@
 - [x] Auditer les validateurs et les scripts de génération actuels
 - [x] Durcir les vérifications de sécurité réseau et cache
 - [x] Ajouter les tests déterministes encore manquants
-- [ ] Régénérer, valider, publier et sauvegarder la dernière version
+- [x] Régénérer, valider, publier et sauvegarder la dernière version
