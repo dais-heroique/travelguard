@@ -13,6 +13,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     @Published private(set) var accuracy: CLLocationAccuracy?
     @Published private(set) var city = "Localisation requise"
     @Published private(set) var country = ""
+    @Published private(set) var countryCode = ""
+    @Published private(set) var proximityAlertsEnabled = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var lastUpdated: Date?
     @Published private(set) var notificationPermission: UNAuthorizationStatus = .notDetermined
@@ -32,7 +34,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         servicesEnabled = CLLocationManager.locationServicesEnabled()
         restoreFreshCache()
         if hasPermission { manager.startUpdatingLocation() }
-        if UserDefaults.standard.bool(forKey: "alertsEnabled") { restoreProximityAlertsIfAuthorized() }
+        proximityAlertsEnabled = UserDefaults.standard.bool(forKey: "alertsEnabled") && !trustedRisks.isEmpty
+        if proximityAlertsEnabled { restoreProximityAlertsIfAuthorized() }
     }
 
     var hasPermission: Bool { authorization == .authorizedWhenInUse || authorization == .authorizedAlways }
@@ -64,18 +67,24 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func setProximityAlerts(_ enabled: Bool) {
-        UserDefaults.standard.set(enabled, forKey: "alertsEnabled")
-        if !enabled {
-            trustedRisks.forEach { manager.stopMonitoring(for: CLCircularRegion(center: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), radius: 250, identifier: $0.id)) }
+        guard enabled, !trustedRisks.isEmpty else {
+            proximityAlertsEnabled = false
+            UserDefaults.standard.set(false, forKey: "alertsEnabled")
+            manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }
             return
         }
+        proximityAlertsEnabled = true
+        UserDefaults.standard.set(true, forKey: "alertsEnabled")
         if authorization == .authorizedWhenInUse { manager.requestAlwaysAuthorization() }
         Task {
-            let granted = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
-            guard granted == true else { return }
+            let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])) == true
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
             await MainActor.run {
-                guard self.authorization == .authorizedAlways else {
-                    self.errorMessage = "Les alertes en arrière-plan nécessitent l’autorisation Toujours."
+                self.notificationPermission = settings.authorizationStatus
+                guard granted, settings.authorizationStatus == .authorized, self.authorization == .authorizedAlways else {
+                    self.proximityAlertsEnabled = false
+                    UserDefaults.standard.set(false, forKey: "alertsEnabled")
+                    self.errorMessage = self.authorization == .authorizedAlways ? "Les notifications sont nécessaires pour les alertes de proximité." : "Les alertes en arrière-plan nécessitent l’autorisation Toujours."
                     return
                 }
                 self.monitorRiskRegions()
@@ -94,7 +103,15 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     private func monitorRiskRegions() {
-        for risk in trustedRisks {
+        guard authorization == .authorizedAlways, proximityAlertsEnabled else { return }
+        let current = coordinate
+        let nearby = trustedRisks
+            .filter { risk in (risk.distance(from: current) ?? .greatestFiniteMagnitude) <= 10000 }
+            .sorted { ($0.distance(from: current) ?? .greatestFiniteMagnitude) < ($1.distance(from: current) ?? .greatestFiniteMagnitude) }
+            .prefix(20)
+        let desiredIDs = Set(nearby.map(\.id))
+        manager.monitoredRegions.filter { !desiredIDs.contains($0.identifier) }.forEach { manager.stopMonitoring(for: $0) }
+        for risk in nearby where !manager.monitoredRegions.contains(where: { $0.identifier == risk.id }) {
             let region = CLCircularRegion(center: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude), radius: 250, identifier: risk.id)
             region.notifyOnEntry = true
             manager.startMonitoring(for: region)
@@ -109,6 +126,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         city = UserDefaults.standard.string(forKey: "lastCity") ?? "Dernière position connue"
         country = UserDefaults.standard.string(forKey: "lastCountry") ?? ""
+        countryCode = UserDefaults.standard.string(forKey: "lastCountryCode") ?? ""
         lastUpdated = timestamp
         accuracy = UserDefaults.standard.object(forKey: "lastLocationAccuracy") as? Double
     }
@@ -116,7 +134,10 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorization = manager.authorizationStatus
         servicesEnabled = CLLocationManager.locationServicesEnabled()
-        if hasPermission { manager.startUpdatingLocation() } else if permissionDenied { errorMessage = "Autorisation refusée. Vous pouvez l’activer dans Réglages." }
+        if hasPermission {
+            manager.startUpdatingLocation()
+            if authorization == .authorizedAlways && proximityAlertsEnabled { monitorRiskRegions() }
+        } else if permissionDenied { errorMessage = "Autorisation refusée. Vous pouvez l’activer dans Réglages." }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -130,6 +151,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         UserDefaults.standard.set(location.coordinate.longitude, forKey: "lastLongitude")
         UserDefaults.standard.set(location.horizontalAccuracy, forKey: "lastLocationAccuracy")
         UserDefaults.standard.set(Date(), forKey: "lastLocationTimestamp")
+        if proximityAlertsEnabled { monitorRiskRegions() }
         let shouldGeocode = lastGeocodeLocation == nil || (lastGeocodeLocation?.distance(from: location) ?? .greatestFiniteMagnitude) > 2000
         guard shouldGeocode else { return }
         lastGeocodeLocation = location
@@ -142,8 +164,10 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
             Task { @MainActor in
                 self.city = place.locality ?? place.subAdministrativeArea ?? place.administrativeArea ?? "Position détectée"
                 self.country = place.country ?? ""
+                self.countryCode = place.isoCountryCode ?? ""
                 UserDefaults.standard.set(self.city, forKey: "lastCity")
                 UserDefaults.standard.set(self.country, forKey: "lastCountry")
+                UserDefaults.standard.set(self.countryCode, forKey: "lastCountryCode")
             }
         }
     }

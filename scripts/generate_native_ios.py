@@ -129,6 +129,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     @Published private(set) var accuracy: CLLocationAccuracy?
     @Published private(set) var city = "Localisation requise"
     @Published private(set) var country = ""
+    @Published private(set) var countryCode = ""
+    @Published private(set) var proximityAlertsEnabled = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var lastUpdated: Date?
     @Published private(set) var notificationPermission: UNAuthorizationStatus = .notDetermined
@@ -148,7 +150,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         servicesEnabled = CLLocationManager.locationServicesEnabled()
         restoreFreshCache()
         if hasPermission { manager.startUpdatingLocation() }
-        if UserDefaults.standard.bool(forKey: "alertsEnabled") { restoreProximityAlertsIfAuthorized() }
+        proximityAlertsEnabled = UserDefaults.standard.bool(forKey: "alertsEnabled") && !trustedRisks.isEmpty
+        if proximityAlertsEnabled { restoreProximityAlertsIfAuthorized() }
     }
 
     var hasPermission: Bool { authorization == .authorizedWhenInUse || authorization == .authorizedAlways }
@@ -180,18 +183,24 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func setProximityAlerts(_ enabled: Bool) {
-        UserDefaults.standard.set(enabled, forKey: "alertsEnabled")
-        if !enabled {
-            trustedRisks.forEach { manager.stopMonitoring(for: CLCircularRegion(center: CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude), radius: 250, identifier: $0.id)) }
+        guard enabled, !trustedRisks.isEmpty else {
+            proximityAlertsEnabled = false
+            UserDefaults.standard.set(false, forKey: "alertsEnabled")
+            manager.monitoredRegions.forEach { manager.stopMonitoring(for: $0) }
             return
         }
+        proximityAlertsEnabled = true
+        UserDefaults.standard.set(true, forKey: "alertsEnabled")
         if authorization == .authorizedWhenInUse { manager.requestAlwaysAuthorization() }
         Task {
-            let granted = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
-            guard granted == true else { return }
+            let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])) == true
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
             await MainActor.run {
-                guard self.authorization == .authorizedAlways else {
-                    self.errorMessage = "Les alertes en arrière-plan nécessitent l’autorisation Toujours."
+                self.notificationPermission = settings.authorizationStatus
+                guard granted, settings.authorizationStatus == .authorized, self.authorization == .authorizedAlways else {
+                    self.proximityAlertsEnabled = false
+                    UserDefaults.standard.set(false, forKey: "alertsEnabled")
+                    self.errorMessage = self.authorization == .authorizedAlways ? "Les notifications sont nécessaires pour les alertes de proximité." : "Les alertes en arrière-plan nécessitent l’autorisation Toujours."
                     return
                 }
                 self.monitorRiskRegions()
@@ -210,7 +219,15 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     private func monitorRiskRegions() {
-        for risk in trustedRisks {
+        guard authorization == .authorizedAlways, proximityAlertsEnabled else { return }
+        let current = coordinate
+        let nearby = trustedRisks
+            .filter { risk in (risk.distance(from: current) ?? .greatestFiniteMagnitude) <= 10000 }
+            .sorted { ($0.distance(from: current) ?? .greatestFiniteMagnitude) < ($1.distance(from: current) ?? .greatestFiniteMagnitude) }
+            .prefix(20)
+        let desiredIDs = Set(nearby.map(\.id))
+        manager.monitoredRegions.filter { !desiredIDs.contains($0.identifier) }.forEach { manager.stopMonitoring(for: $0) }
+        for risk in nearby where !manager.monitoredRegions.contains(where: { $0.identifier == risk.id }) {
             let region = CLCircularRegion(center: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude), radius: 250, identifier: risk.id)
             region.notifyOnEntry = true
             manager.startMonitoring(for: region)
@@ -225,6 +242,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         city = UserDefaults.standard.string(forKey: "lastCity") ?? "Dernière position connue"
         country = UserDefaults.standard.string(forKey: "lastCountry") ?? ""
+        countryCode = UserDefaults.standard.string(forKey: "lastCountryCode") ?? ""
         lastUpdated = timestamp
         accuracy = UserDefaults.standard.object(forKey: "lastLocationAccuracy") as? Double
     }
@@ -232,7 +250,10 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorization = manager.authorizationStatus
         servicesEnabled = CLLocationManager.locationServicesEnabled()
-        if hasPermission { manager.startUpdatingLocation() } else if permissionDenied { errorMessage = "Autorisation refusée. Vous pouvez l’activer dans Réglages." }
+        if hasPermission {
+            manager.startUpdatingLocation()
+            if authorization == .authorizedAlways && proximityAlertsEnabled { monitorRiskRegions() }
+        } else if permissionDenied { errorMessage = "Autorisation refusée. Vous pouvez l’activer dans Réglages." }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -246,6 +267,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         UserDefaults.standard.set(location.coordinate.longitude, forKey: "lastLongitude")
         UserDefaults.standard.set(location.horizontalAccuracy, forKey: "lastLocationAccuracy")
         UserDefaults.standard.set(Date(), forKey: "lastLocationTimestamp")
+        if proximityAlertsEnabled { monitorRiskRegions() }
         let shouldGeocode = lastGeocodeLocation == nil || (lastGeocodeLocation?.distance(from: location) ?? .greatestFiniteMagnitude) > 2000
         guard shouldGeocode else { return }
         lastGeocodeLocation = location
@@ -258,8 +280,10 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
             Task { @MainActor in
                 self.city = place.locality ?? place.subAdministrativeArea ?? place.administrativeArea ?? "Position détectée"
                 self.country = place.country ?? ""
+                self.countryCode = place.isoCountryCode ?? ""
                 UserDefaults.standard.set(self.city, forKey: "lastCity")
                 UserDefaults.standard.set(self.country, forKey: "lastCountry")
+                UserDefaults.standard.set(self.countryCode, forKey: "lastCountryCode")
             }
         }
     }
@@ -536,21 +560,66 @@ import SwiftUI
 import UIKit
 import Vision
 
-struct OCRSummary {
+enum OCRSupport {
+    static let amountPattern = #"(?<![0-9])([0-9]{1,3}(?:[ .\u{00A0}][0-9]{3})*(?:[.,][0-9]{1,2})?|[0-9]+(?:[.,][0-9]{1,2})?)\s*(€|EUR|USD|\$|£|GBP|CHF)?"#
+    static let labelPattern = #"\b(total|subtotal|sous[- ]?total|amount due|à payer|a payer|taxe?|tva|vat|service|tip|service charge|frais|commission|surcharge|supplement)\b"#
+
+    static func normalizeNumber(_ raw: String) -> Double? {
+        var value = raw.replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "\u{00A0}", with: "")
+        let comma = value.lastIndex(of: ",")
+        let dot = value.lastIndex(of: ".")
+        if let comma, let dot {
+            if comma > dot { value = value.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".") }
+            else { value = value.replacingOccurrences(of: ",", with: "") }
+        } else if value.contains(",") {
+            let parts = value.split(separator: ",")
+            value = parts.count == 2 && parts[1].count <= 2 ? value.replacingOccurrences(of: ",", with: ".") : value.replacingOccurrences(of: ",", with: "")
+        } else if value.contains(".") {
+            let parts = value.split(separator: ".")
+            if parts.count == 2 && parts[1].count == 3 && parts[0].count <= 3 { value = value.replacingOccurrences(of: ".", with: "") }
+        }
+        return Double(value)
+    }
+
+    static func currency(for countryCode: String) -> String {
+        switch countryCode.uppercased() { case "US", "CA": return "USD"; case "GB": return "GBP"; case "CH": return "CHF"; case "JP": return "JPY"; default: return "EUR" }
+    }
+
+    static func parse(_ lines: [String], fallbackCurrency: String) -> OCRSummary {
+        var result = OCRSummary(); result.currency = fallbackCurrency
+        let regex = try? NSRegularExpression(pattern: amountPattern, options: .caseInsensitive)
+        for line in lines {
+            let lower = line.lowercased()
+            if lower.range(of: #"\\b[0-9]{1,2}[./-][0-9]{1,2}[./-][0-9]{2,4}\\b"#, options: .regularExpression) != nil { continue }
+            let matches = regex?.matches(in: line, range: NSRange(line.startIndex..., in: line)) ?? []
+            guard let match = matches.last, let numberRange = Range(match.range(at: 1), in: line), let value = normalizeNumber(String(line[numberRange])) else { continue }
+            if let symbolRange = Range(match.range(at: 2), in: line), !String(line[symbolRange]).isEmpty { result.currency = String(line[symbolRange]) }
+            result.amounts.append(value)
+            let isTotal = lower.range(of: #"\\b(total|amount due|à payer|a payer)\\b"#, options: .regularExpression) != nil
+            let isSubtotal = lower.range(of: #"\\b(subtotal|sous[- ]?total)\\b"#, options: .regularExpression) != nil
+            let isTax = lower.range(of: #"\\b(taxe?|tva|vat)\\b"#, options: .regularExpression) != nil
+            let isService = lower.range(of: #"\\b(service|tip|service charge|frais|commission|surcharge|supplement)\\b"#, options: .regularExpression) != nil
+            if isTotal { result.total = value } else if isSubtotal { result.subtotal = value } else if isTax { result.tax = value } else if isService { result.service = value } else if !isTotal && !isTax && !isService { result.itemAmounts.append(value) }
+        }
+        return result
+    }
+}
+
+struct OCRSummary: Sendable {
     var currency = ""
     var subtotal: Double?
     var tax: Double?
     var service: Double?
     var total: Double?
     var amounts: [Double] = []
+    var itemAmounts: [Double] = []
     var calculatedTotal: Double? {
-        guard let subtotal else { return nil }
-        return subtotal + (tax ?? 0) + (service ?? 0)
+        let base: Double?
+        if itemAmounts.isEmpty { base = subtotal } else { base = itemAmounts.reduce(0, +) }
+        guard let base else { return nil }
+        return base + (tax ?? 0) + (service ?? 0)
     }
-    var difference: Double? {
-        guard let total, let calculatedTotal else { return nil }
-        return total - calculatedTotal
-    }
+    var difference: Double? { guard let total, let calculatedTotal else { return nil }; return total - calculatedTotal }
     var hasData: Bool { !amounts.isEmpty || subtotal != nil || tax != nil || service != nil || total != nil }
 }
 
@@ -566,92 +635,58 @@ struct ScannerView: View {
         NavigationStack { ScrollView { VStack(alignment: .leading, spacing: 18) {
             Text("CONTRÔLE INTELLIGENT").font(.caption.weight(.heavy)).tracking(1.2).foregroundStyle(TGColor.muted)
             Text("Scanner avant de payer").font(.largeTitle.bold())
-            Text("Cadrez un menu, une addition ou un billet. Les lignes qui méritent une vérification apparaissent en rouge.").foregroundStyle(TGColor.muted)
+            Text("Cadrez un menu, une addition ou un billet. L’analyse est locale et indicative : aucune conclusion officielle n’est inventée.").foregroundStyle(TGColor.muted)
             Button { showingCamera = true } label: { Label("Prendre une photo", systemImage: "camera.fill").font(.headline).foregroundStyle(.white).frame(maxWidth: .infinity).padding().background(TGColor.teal).clipShape(RoundedRectangle(cornerRadius: 16)) }
             PhotosPicker(selection: $selectedItem, matching: .images) { Label("Choisir une photo", systemImage: "photo").font(.headline).foregroundStyle(TGColor.ink).frame(maxWidth: .infinity).padding().background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) }.onChange(of: selectedItem) { _, item in Task { await analyze(item) } }
             if isAnalyzing { ProgressView("Analyse locale du document…").padding(.vertical) }
-            if !recognizedLines.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("Résultat du contrôle", systemImage: suspectLines.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill").font(.headline).foregroundStyle(suspectLines.isEmpty ? .green : TGColor.coral)
-                    ForEach(recognizedLines, id: \.self) { line in
-                        Text(line).font(.body.weight(suspectLines.contains(line) ? .semibold : .regular)).foregroundStyle(suspectLines.contains(line) ? .red : TGColor.ink).padding(.vertical, 3)
-                    }
-                    if !suspectLines.isEmpty { Text("Vérifiez ces lignes avant de payer : frais, service, commission ou supplément peuvent être ajoutés.").font(.footnote).foregroundStyle(.red) }
-                    if summary.hasData { VStack(alignment: .leading, spacing: 6) { Text("Lecture structurée").font(.subheadline.bold()); if let subtotal = summary.subtotal { Text("Sous-total : \(subtotal, specifier: \"%.2f\") \(summary.currency)") }; if let tax = summary.tax { Text("Taxes : \(tax, specifier: \"%.2f\") \(summary.currency)") }; if let service = summary.service { Text("Service : \(service, specifier: \"%.2f\") \(summary.currency)") }; if let total = summary.total { Text("Total détecté : \(total, specifier: \"%.2f\") \(summary.currency)").fontWeight(.bold) }; if let calculated = summary.calculatedTotal, let difference = summary.difference { Text(abs(difference) <= 0.05 ? "Total cohérent avec les lignes détectées : \(calculated, specifier: \"%.2f\") \(summary.currency)" : "Écart à vérifier : \(difference, specifier: \"%.2f\") \(summary.currency)").foregroundStyle(abs(difference) <= 0.05 ? .green : .red).font(.footnote.bold()) }; Text("Aucune référence officielle n’est disponible pour comparer automatiquement cette addition. Vérifiez toujours le document original.").font(.caption).foregroundStyle(TGColor.muted) }.padding(.top, 8) }
-                }.tgCard()
-            } else if !isAnalyzing {
-                VStack(alignment: .leading, spacing: 8) { Label("Aucun document analysé", systemImage: "viewfinder").font(.headline); Text("Prenez une photo ou choisissez une image pour lancer la détection du texte.").font(.subheadline).foregroundStyle(TGColor.muted) }.tgCard()
-            }
+            if !recognizedLines.isEmpty { VStack(alignment: .leading, spacing: 10) {
+                Label("Résultat du contrôle", systemImage: suspectLines.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill").font(.headline).foregroundStyle(suspectLines.isEmpty ? .green : TGColor.coral)
+                ForEach(recognizedLines, id: \.self) { line in Text(line).font(.body.weight(suspectLines.contains(line) ? .semibold : .regular)).foregroundStyle(suspectLines.contains(line) ? .red : TGColor.ink).padding(.vertical, 3) }
+                if !suspectLines.isEmpty { Text("Vérifiez les frais, taxes, commissions et suppléments avant de payer.").font(.footnote).foregroundStyle(.red) }
+                if summary.hasData { VStack(alignment: .leading, spacing: 6) { Text("Lecture structurée").font(.subheadline.bold()); if !summary.itemAmounts.isEmpty { Text("Articles détectés : \(summary.itemAmounts.reduce(0, +), specifier: \"%.2f\") \(summary.currency)") }; if let subtotal = summary.subtotal { Text("Sous-total indiqué : \(subtotal, specifier: \"%.2f\") \(summary.currency)") }; if let tax = summary.tax { Text("Taxes : \(tax, specifier: \"%.2f\") \(summary.currency)") }; if let service = summary.service { Text("Service : \(service, specifier: \"%.2f\") \(summary.currency)") }; if let total = summary.total { Text("Total détecté : \(total, specifier: \"%.2f\") \(summary.currency)").fontWeight(.bold) }; if let calculated = summary.calculatedTotal, let difference = summary.difference { Text(abs(difference) <= 0.05 ? "Total cohérent avec les lignes détectées : \(calculated, specifier: \"%.2f\") \(summary.currency)" : "Écart arithmétique à vérifier : \(difference, specifier: \"%.2f\") \(summary.currency)").foregroundStyle(abs(difference) <= 0.05 ? .green : .red).font(.footnote.bold()) }; Text("La comparaison à un tarif officiel n’est pas disponible sans source locale autorisée.").font(.caption).foregroundStyle(TGColor.muted) }.padding(.top, 8) }
+            }.tgCard() } else if !isAnalyzing { VStack(alignment: .leading, spacing: 8) { Label("Aucun document analysé", systemImage: "viewfinder").font(.headline); Text("Prenez une photo ou choisissez une image pour lancer la détection du texte.").font(.subheadline).foregroundStyle(TGColor.muted) }.tgCard() }
             Label(store.network.isChecking ? "Vérification du réseau…" : store.network.isOnline ? "En ligne · OCR local disponible" : "Hors ligne · OCR local disponible", systemImage: store.network.isOnline ? "wifi" : "wifi.slash").font(.footnote).foregroundStyle(TGColor.muted).padding(.top, 8)
         }.padding(20).padding(.bottom, 30) }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).sheet(isPresented: $showingCamera) { CameraPicker { image in Task { await recognize(image) } } } }
     }
-    @MainActor private func analyze(_ item: PhotosPickerItem?) async {
-        guard let item else { return }
-        defer { selectedItem = nil }
-        do {
-            guard let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { recognizedLines = ["Image impossible à charger. Choisissez une autre photo et réessayez."]; return }
-            await recognize(image)
-        } catch {
-            recognizedLines = ["La photo n’a pas pu être lue. Choisissez une autre image et réessayez."]
-        }
-        return
-    }
+    @MainActor private func analyze(_ item: PhotosPickerItem?) async { guard let item else { return }; defer { selectedItem = nil }; do { guard let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { recognizedLines = ["Image impossible à charger."]; return }; await recognize(image) } catch { recognizedLines = ["La photo n’a pas pu être lue. Choisissez une autre image et réessayez."] } }
     @MainActor private func recognize(_ image: UIImage) async {
-        let prepared = prepareImage(image)
-        guard let cgImage = prepared.cgImage else { recognizedLines = ["Format d’image non pris en charge."]; isAnalyzing = false; return }
+        guard let prepared = OCRSupport.prepareImage(image), let cgImage = prepared.cgImage else { recognizedLines = ["Format d’image non pris en charge."]; return }
         isAnalyzing = true; recognizedLines = []; suspectLines = []; summary = OCRSummary()
-        let request = VNRecognizeTextRequest { request, _ in
-            let observations = request.results as? [VNRecognizedTextObservation] ?? []
-            let lines = observations.compactMap { $0.topCandidates(1).first?.string }.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            let suspects = Set(lines.filter { line in
-                let lower = line.lowercased()
-                let feeTerms = ["service", "frais", "commission", "taxe", "tax", "tip", "gratuidad", "propina", "service charge", "surcharge", "supplement"]
-                let exactFeeLabel = feeTerms.contains { lower.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix($0) }
-                let hasAmount = line.range(of: #"\d+[.,]?\d*\s*(€|eur|usd|\\$|£|gbp|chf|%)?"#, options: .regularExpression) != nil
-                return hasAmount && feeTerms.contains { lower.contains($0) } || exactFeeLabel && hasAmount
-            })
-            let parsed = parse(lines)
-            Task { @MainActor in self.recognizedLines = lines.isEmpty ? ["Aucun texte lisible détecté. Rapprochez le document, améliorez la lumière et réessayez."] : lines; self.suspectLines = suspects; self.summary = parsed; self.isAnalyzing = false }
-        }
-        request.recognitionLevel = .accurate
-        let desiredLanguages = ["fr-FR", "en-US", "it-IT", "es-ES", "de-DE", "pt-PT", "sl-SI", "hr-HR"]
-        if let supported = try? VNRecognizeTextRequest.supportedRecognitionLanguages(for: .accurate, revision: VNRecognizeTextRequest.currentRevision) { request.recognitionLanguages = desiredLanguages.filter { supported.contains($0) } }
-        do { try VNImageRequestHandler(cgImage: cgImage).perform([request]) } catch { recognizedLines = ["L’analyse a échoué. Vérifiez la lumière et réessayez."]; isAnalyzing = false }
+        let languages = ["fr-FR", "en-US", "it-IT", "es-ES", "de-DE", "pt-PT", "sl-SI", "hr-HR"]
+        let supported = (try? VNRecognizeTextRequest.supportedRecognitionLanguages(for: .accurate, revision: VNRecognizeTextRequest.currentRevision)) ?? []
+        let selectedLanguages = languages.filter { supported.contains($0) }
+        let fallbackCurrency = OCRSupport.currency(for: store.location.countryCode)
+        let result = await Task.detached(priority: .userInitiated) { () -> (lines: [String], summary: OCRSummary) in
+            var outputLines: [String] = []; var requestSummary = OCRSummary(); let semaphore = DispatchSemaphore(value: 0)
+            let request = VNRecognizeTextRequest { request, _ in
+                let observations = request.results as? [VNRecognizedTextObservation] ?? []
+                outputLines = observations.compactMap { $0.topCandidates(1).first?.string }.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                requestSummary = OCRSupport.parse(outputLines, fallbackCurrency: fallbackCurrency)
+                semaphore.signal()
+            }
+            request.recognitionLevel = .accurate; request.recognitionLanguages = selectedLanguages
+            do { try VNImageRequestHandler(cgImage: cgImage).perform([request]); semaphore.wait() } catch { outputLines = ["L’analyse a échoué. Vérifiez la lumière et réessayez."] }
+            return (outputLines, requestSummary)
+        }.value
+        recognizedLines = result.lines.isEmpty ? ["Aucun texte lisible détecté. Rapprochez le document et améliorez la lumière."] : result.lines
+        summary = result.summary
+        suspectLines = Set(result.lines.filter { line in line.range(of: OCRSupport.labelPattern, options: .regularExpression) != nil && line.range(of: OCRSupport.amountPattern, options: .regularExpression) != nil })
+        isAnalyzing = false
     }
+}
 
-    private func prepareImage(_ image: UIImage) -> UIImage {
-        let renderer = UIGraphicsImageRenderer(size: image.size)
-        let normalized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: image.size)) }
+extension OCRSupport {
+    static func prepareImage(_ image: UIImage) -> UIImage? {
+        let maxWidth: CGFloat = 2200; let scale = min(1, maxWidth / max(image.size.width, 1)); let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: size); let normalized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
         guard let input = CIImage(image: normalized), let filter = CIFilter(name: "CIColorControls") else { return normalized }
         filter.setValue(input, forKey: kCIInputImageKey); filter.setValue(1.15, forKey: kCIInputContrastKey); filter.setValue(0.05, forKey: kCIInputBrightnessKey)
         guard let output = filter.outputImage, let cg = CIContext().createCGImage(output, from: output.extent) else { return normalized }
         return UIImage(cgImage: cg, scale: normalized.scale, orientation: .up)
     }
-
-    private func parse(_ lines: [String]) -> OCRSummary {
-        var result = OCRSummary()
-        let regex = try? NSRegularExpression(pattern: "(?<![0-9])([0-9]{1,4}(?:[.,][0-9]{1,2})?)\\s*(€|EUR|USD|\\$|£|GBP|CHF)?", options: .caseInsensitive)
-        for line in lines {
-            let lower = line.lowercased()
-            let matches = regex?.matches(in: line, range: NSRange(line.startIndex..., in: line)) ?? []
-            let values = matches.compactMap { match -> Double? in
-                guard let range = Range(match.range(at: 1), in: line) else { return nil }
-                return Double(line[range].replacingOccurrences(of: ",", with: "."))
-            }
-            if let symbolRange = matches.first.flatMap({ Range($0.range(at: 2), in: line) }) { result.currency = String(line[symbolRange]) }
-            guard let value = values.last else { continue }
-            result.amounts.append(value)
-            if lower.contains("total") || lower.contains("amount due") || lower.contains("à payer") || lower.contains("a payer") { result.total = value }
-            else if lower.contains("tax") || lower.contains("tva") || lower.contains("vat") { result.tax = value }
-            else if lower.contains("service") || lower.contains("tip") { result.service = value }
-            else if result.subtotal == nil { result.subtotal = value }
-        }
-        return result
-    }
 }
 
-struct CameraPicker: UIViewControllerRepresentable { let onImage: (UIImage) -> Void; func makeCoordinator() -> Coordinator { Coordinator(onImage: onImage) }; func makeUIViewController(context: Context) -> UIImagePickerController { let picker = UIImagePickerController(); picker.sourceType = .camera; picker.delegate = context.coordinator; return picker }; func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}; final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate { let onImage: (UIImage) -> Void; init(onImage: @escaping (UIImage) -> Void) { self.onImage = onImage }; func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) { if let image = info[.originalImage] as? UIImage { onImage(image) }; picker.dismiss(animated: true) }; func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { picker.dismiss(animated: true) } } }
-''',
+struct CameraPicker: UIViewControllerRepresentable { let onImage: (UIImage) -> Void; func makeCoordinator() -> Coordinator { Coordinator(onImage: onImage) }; func makeUIViewController(context: Context) -> UIViewController { guard UIImagePickerController.isSourceTypeAvailable(.camera) else { let alert = UIAlertController(title: "Caméra indisponible", message: "Choisissez une photo depuis votre bibliothèque.", preferredStyle: .alert); alert.addAction(UIAlertAction(title: "OK", style: .default)); return alert }; let picker = UIImagePickerController(); picker.sourceType = .camera; picker.delegate = context.coordinator; return picker }; func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}; final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate { let onImage: (UIImage) -> Void; init(onImage: @escaping (UIImage) -> Void) { self.onImage = onImage }; func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) { if let image = info[.originalImage] as? UIImage { onImage(image) }; picker.dismiss(animated: true) }; func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { picker.dismiss(animated: true) } } }''',
 'SafetyView.swift': r'''import CoreLocation
 import SwiftUI
 import UIKit
@@ -659,22 +694,24 @@ import UIKit
 struct SafetyView: View {
     @EnvironmentObject private var store: TravelGuardStore
     @State private var phraseIndex = 0
-    @State private var alertsEnabled = UserDefaults.standard.object(forKey: "alertsEnabled") as? Bool ?? false
+    @State private var callError = false
     private var emergencyNumber: String {
-        let region = Locale.current.region?.identifier ?? ""
+        let region = store.location.countryCode.uppercased()
         if ["US", "CA"].contains(region) { return "911" }
         if region == "GB" { return "999" }
         if region == "AU" { return "000" }
         if region == "JP" { return "110" }
+        if ["CN", "KR"].contains(region) { return "112" }
         return "112"
     }
+    private var alertsBinding: Binding<Bool> { Binding(get: { store.location.proximityAlertsEnabled }, set: { store.location.setProximityAlerts($0) }) }
     var body: some View {
         NavigationStack { ScrollView { VStack(alignment: .leading, spacing: 16) { HStack { VStack(alignment: .leading) { Text("PROTECTION ET RÉFÉRENCES").font(.caption.weight(.heavy)).tracking(1.2).foregroundStyle(TGColor.muted); Text("Sécurité").font(.largeTitle.bold()) }; Spacer(); Label(store.location.hasPermission ? "Position protégée" : "Localisation requise", systemImage: store.location.hasPermission ? "checkmark.shield.fill" : "location.slash").font(.caption.bold()).foregroundStyle(store.location.hasPermission ? .green : TGColor.amber) }
-            VStack(alignment: .leading, spacing: 12) { Label("BESOIN D’AIDE ?", systemImage: "shield.fill").font(.caption.weight(.heavy)).foregroundStyle(.white.opacity(0.85)); Text("Gardez vos phrases prêtes.").font(.title2.bold()).foregroundStyle(.white); Text("Affichez une phrase locale sans chercher dans vos réglages.").foregroundStyle(.white.opacity(0.85)); HStack { Button { phraseIndex = (phraseIndex + 1) % sampleSOS.count } label: { Label("Phrase locale", systemImage: "speaker.wave.2.fill") }.buttonStyle(.borderedProminent).tint(.white).foregroundStyle(TGColor.coral); Button { if let url = URL(string: "tel://\(emergencyNumber)") { UIApplication.shared.open(url) } } label: { Label("Secours \(emergencyNumber)", systemImage: "phone.fill") }.buttonStyle(.borderedProminent).tint(.white).foregroundStyle(TGColor.coral) } }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(TGColor.coral).clipShape(RoundedRectangle(cornerRadius: 22))
+            VStack(alignment: .leading, spacing: 12) { Label("BESOIN D’AIDE ?", systemImage: "shield.fill").font(.caption.weight(.heavy)).foregroundStyle(.white.opacity(0.85)); Text("Gardez vos phrases prêtes.").font(.title2.bold()).foregroundStyle(.white); Text("Affichez une phrase locale sans chercher dans vos réglages.").foregroundStyle(.white.opacity(0.85)); HStack { Button { phraseIndex = (phraseIndex + 1) % sampleSOS.count } label: { Label("Phrase locale", systemImage: "speaker.wave.2.fill") }.buttonStyle(.borderedProminent).tint(.white).foregroundStyle(TGColor.coral); Button { guard let url = URL(string: "tel://\(emergencyNumber)"), UIApplication.shared.canOpenURL(url) else { callError = true; return }; UIApplication.shared.open(url) { success in if !success { Task { @MainActor in callError = true } } } } label: { Label("Secours \(emergencyNumber)", systemImage: "phone.fill") }.buttonStyle(.borderedProminent).tint(.white).foregroundStyle(TGColor.coral) } }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(TGColor.coral).clipShape(RoundedRectangle(cornerRadius: 22))
             VStack(alignment: .leading, spacing: 8) { HStack { Text(sampleSOS[phraseIndex].language).font(.caption.bold()).foregroundStyle(TGColor.teal); Spacer(); Text(store.network.isOnline ? "En ligne" : "Hors ligne").font(.caption.bold()).foregroundStyle(TGColor.muted) }; Text(sampleSOS[phraseIndex].local).font(.title3.bold()); Text(sampleSOS[phraseIndex].translation).foregroundStyle(TGColor.muted) }.tgCard()
-            Text("Réglages de protection").font(.title3.bold()); Toggle("Alertes de proximité", isOn: $alertsEnabled).tint(TGColor.teal).disabled(trustedRisks.isEmpty).tgCard().onChange(of: alertsEnabled) { _, value in store.location.setProximityAlerts(value) }; Text(trustedRisks.isEmpty ? "Aucune source géolocalisée fiable · alertes indisponibles" : alertsEnabled ? (store.location.notificationPermission == .authorized ? "Alertes activées · régions iOS surveillées" : "Activation en attente de l’autorisation Notifications") : "Alertes désactivées").font(.caption.bold()).foregroundStyle(alertsEnabled ? TGColor.teal : TGColor.muted); Text("Les alertes utilisent la surveillance de régions iOS et nécessitent les autorisations de localisation et de notifications. Aucune alerte locale n’est activée sans une source géolocalisée autorisée. Les sources officielles générales sont consultables ci-dessous.").font(.caption).foregroundStyle(TGColor.muted); HStack { Image(systemName: store.network.isOnline ? "wifi" : "wifi.slash").foregroundStyle(store.network.isOnline ? .green : TGColor.amber); VStack(alignment: .leading) { Text("Mode hors ligne automatique").font(.subheadline.bold()); Text(store.network.isChecking ? "Vérification de la connexion…" : store.network.isOnline ? "Connexion active · données locales prêtes" : "Aucune connexion · données locales utilisées").font(.caption).foregroundStyle(TGColor.muted) } }.tgCard()
+            Text("Réglages de protection").font(.title3.bold()); Toggle("Alertes de proximité", isOn: alertsBinding).tint(TGColor.teal).disabled(trustedRisks.isEmpty).tgCard(); Text(trustedRisks.isEmpty ? "Aucune source géolocalisée fiable · alertes indisponibles" : store.location.proximityAlertsEnabled ? (store.location.notificationPermission == .authorized ? "Alertes activées · régions iOS surveillées" : "Activation en attente de l’autorisation Notifications") : "Alertes désactivées").font(.caption.bold()).foregroundStyle(store.location.proximityAlertsEnabled ? TGColor.teal : TGColor.muted); Text("Les alertes utilisent la surveillance de régions iOS et nécessitent les autorisations de localisation et de notifications. Aucune alerte locale n’est activée sans une source géolocalisée autorisée. Les sources officielles générales sont consultables ci-dessous.").font(.caption).foregroundStyle(TGColor.muted); HStack { Image(systemName: store.network.isOnline ? "wifi" : "wifi.slash").foregroundStyle(store.network.isOnline ? .green : TGColor.amber); VStack(alignment: .leading) { Text("Mode hors ligne automatique").font(.subheadline.bold()); Text(store.network.isChecking ? "Vérification de la connexion…" : store.network.isOnline ? "Connexion active · données locales prêtes" : "Aucune connexion · données locales utilisées").font(.caption).foregroundStyle(TGColor.muted) } }.tgCard()
             Text("Références de prix · \(store.location.city)").font(.title3.bold()); if prices(for: store.location.city).isEmpty { Text("Aucune référence officielle disponible pour cette ville. TravelGuard ne présente pas les données de démonstration comme des tarifs réels.").font(.subheadline).foregroundStyle(TGColor.muted).tgCard() } else { ForEach(prices(for: store.location.city)) { price in HStack { Text(price.label).bold(); Spacer(); Text(price.value) }.tgCard() } }; Text("Sources officielles").font(.title3.bold()); ForEach(officialSources) { source in Button { if let url = URL(string: source.url) { UIApplication.shared.open(url) } } label: { HStack { Image(systemName: "checkmark.seal").foregroundStyle(TGColor.teal); VStack(alignment: .leading) { Text(source.title).font(.subheadline.bold()); Text(source.scope).font(.caption).foregroundStyle(TGColor.muted) }; Spacer(); Image(systemName: "arrow.up.right").foregroundStyle(TGColor.muted) }.tgCard() } }
-        }.padding(20).padding(.bottom, 30) }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).onAppear { if trustedRisks.isEmpty { alertsEnabled = false } else if alertsEnabled { store.location.restoreProximityAlertsIfAuthorized() } } }
+        }.padding(20).padding(.bottom, 30) }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).onAppear { if trustedRisks.isEmpty { store.location.setProximityAlerts(false) } else if store.location.proximityAlertsEnabled { store.location.restoreProximityAlertsIfAuthorized() } }.alert("Appel indisponible", isPresented: $callError) { Button("OK", role: .cancel) {} } message: { Text("Ce téléphone ne peut pas lancer automatiquement l’appel. Composez le numéro d’urgence local manuellement.") } }
     }
 }
 ''',

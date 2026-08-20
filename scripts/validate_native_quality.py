@@ -31,11 +31,15 @@ assert "horizontalAccuracy <= 100" in all_swift
 assert "hasUserInteractedWithMap" in all_swift
 assert "!hasUserInteractedWithMap" in all_swift
 assert "UIApplication.openSettingsURLString" in all_swift
+assert "requestAlwaysAuthorization" in all_swift
+assert ".prefix(20)" in all_swift
+assert "canOpenURL" in all_swift
+assert "countryCode" in all_swift
 assert "Aucune référence officielle" in all_swift
 assert re.search(r"https://travel\.state\.gov/.+scams", all_swift)
 
 info = plistlib.loads((SRC / "Info.plist").read_bytes())
-for key in ("CFBundleIdentifier", "CFBundleExecutable", "CFBundlePackageType", "NSCameraUsageDescription", "NSLocationWhenInUseUsageDescription"):
+for key in ("CFBundleIdentifier", "CFBundleExecutable", "CFBundlePackageType", "NSCameraUsageDescription", "NSLocationWhenInUseUsageDescription", "NSLocationAlwaysAndWhenInUseUsageDescription"):
     assert key in info, f"missing Info.plist key: {key}"
 
 project = (NATIVE / "TravelGuard.xcodeproj" / "project.pbxproj").read_text(encoding="utf-8")

@@ -189,3 +189,20 @@
 - [x] Vérifier la visibilité publique et l’état de la branche principale
 - [x] Synchroniser la dernière version validée vers GitHub
 - [x] Contrôler le commit et les fichiers clés sur le dépôt distant
+
+# Corrections Pasted_content_11
+- [x] Réenregistrer automatiquement les régions après autorisation Always
+- [x] Synchroniser l’état des notifications et annuler le toggle si refus
+- [x] Limiter le géofencing aux risques proches et gérer les régions obsolètes
+- [x] Corriger les montants européens et les séparateurs de milliers
+- [x] Éviter de prendre le premier prix pour le sous-total
+- [x] Somme des articles, taxes et service avec total attendu
+- [x] Détection OCR par libellés et contexte de devise
+- [x] Déduire la devise depuis le document ou la région GPS
+- [x] Utiliser le pays de position pour le numéro d’urgence
+- [x] Gérer l’échec d’ouverture de l’appel d’urgence
+- [x] Supprimer le code mort de date locale
+- [x] Déplacer Vision OCR hors du thread principal
+- [x] Redimensionner les photos avant OCR
+- [x] Vérifier la disponibilité de la caméra
+- [x] Régénérer, valider et publier la nouvelle version
