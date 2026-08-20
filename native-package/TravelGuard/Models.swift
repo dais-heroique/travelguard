@@ -23,8 +23,24 @@ struct RiskPlace: Identifiable, Hashable, Codable {
             if let rect { return rect.contains(MKMapPoint(CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude))) }
             return risk.longitude >= normalizedLeft || risk.longitude <= normalizedRight
         }
-        let limit = lonDelta > 60 || latDelta > 60 ? 120 : lonDelta > 20 || latDelta > 20 ? 300 : 1000
-        return visible.sorted { $0.score > $1.score }.prefix(limit).map { $0 }
+        let limit = lonDelta > 60 || latDelta > 60 ? 80 : lonDelta > 20 || latDelta > 20 ? 180 : 300
+        let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
+        let ranked = visible.sorted {
+            let leftDistance = CLLocation(latitude: $0.latitude, longitude: $0.longitude).distance(from: center)
+            let rightDistance = CLLocation(latitude: $1.latitude, longitude: $1.longitude).distance(from: center)
+            let leftPriority = Double($0.score) * 0.55 + max(0, 1 - leftDistance / 100000) * 45
+            let rightPriority = Double($1.score) * 0.55 + max(0, 1 - rightDistance / 100000) * 45
+            return leftPriority > rightPriority
+        }
+        var occupiedCells = Set<String>()
+        var selected: [RiskPlace] = []
+        for risk in ranked {
+            let cellSize = lonDelta > 60 || latDelta > 60 ? 4.0 : lonDelta > 20 || latDelta > 20 ? 1.0 : 0.15
+            let cell = "\(Int((risk.latitude + 90) / cellSize)):\(Int((risk.longitude + 180) / cellSize))"
+            if occupiedCells.insert(cell).inserted || risk.score >= 80 { selected.append(risk) }
+            if selected.count >= limit { break }
+        }
+        return selected
     }
 
     static func validated(_ risks: [RiskPlace]) -> [RiskPlace] {
@@ -70,11 +86,12 @@ struct RiskPlace: Identifiable, Hashable, Codable {
     }
     var confidenceScore: Int {
         let ageDays = max(0, Calendar.current.dateComponents([.day], from: updatedAt, to: Date()).day ?? 0)
-        let freshness = max(0, 25 - min(ageDays, 25))
+        let freshness = max(0, 30 - min(ageDays, 30))
         let reportSignal = min(25, reportCount * 2)
-        let sourceSignal = source.contains("démonstration") ? 0 : 25
-        let completenessSignal = summary.isEmpty || signals.isEmpty ? 0 : 20
-        return min(100, max(0, freshness + reportSignal + sourceSignal + completenessSignal))
+        let normalizedSource = source.lowercased()
+        let sourceSignal: Int = normalizedSource.contains("ministère") || normalizedSource.contains("government") || normalizedSource.contains("officiel") ? 25 : normalizedSource.contains("partenaire") ? 20 : normalizedSource.contains("communaut") || normalizedSource.contains("verified") ? 10 : 0
+        let evidenceSignal = signals.isEmpty ? 0 : min(20, signals.count * 5)
+        return min(100, max(0, freshness + reportSignal + sourceSignal + evidenceSignal))
     }
 
     func formattedDistance(from coordinate: CLLocationCoordinate2D?) -> String {

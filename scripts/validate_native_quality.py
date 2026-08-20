@@ -55,6 +55,15 @@ assert "zone visible" in all_swift
 assert "MKMapRect" in all_swift
 assert "inViewport" in all_swift
 assert "positionSearchTimedOut" in all_swift
+assert "positionTask?.cancel()" in all_swift
+assert "requestCompletedAt" in all_swift
+assert "schemaVersion == 1" in all_swift
+assert "cacheMaxAge" in all_swift
+assert "protectionStatusLabel" in all_swift
+assert "Prix probablement abusif" in all_swift
+assert "INCONNUE" in all_swift
+assert "sourceSignal" in all_swift
+assert ".prefix(300)" not in all_swift
 assert "riskDataFreshnessLabel" in all_swift
 assert "riskDataIsStale" in all_swift
 assert "frame(width: 44, height: 44)" in all_swift

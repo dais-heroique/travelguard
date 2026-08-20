@@ -294,3 +294,17 @@
 - [x] Ajouter timeout et remise à zéro de la recherche GPS
 - [x] Ajouter les tests déterministes correspondants
 - [x] Régénérer, valider et publier la version corrigée
+
+# Corrections Pasted_content_24
+- [x] Annuler la Task GPS précédente avant toute nouvelle recherche
+- [x] Terminer la recherche GPS sur un fix, une erreur, un refus ou un timeout
+- [x] Afficher un message UX explicite après timeout GPS
+- [x] Valider schemaVersion et savedAt du cache avant restauration
+- [x] Définir une stratégie cohérente de cache mondial ou régional
+- [x] Préparer une densité géographique et un clustering pour les grands volumes
+- [x] Séparer la confiance de la sévérité et classifier les sources
+- [x] Uniformiser le statut Protection active dans Home, Carte, Sécurité et détails
+- [x] Clarifier proximité Home versus viewport Carte
+- [x] Auditer les états OCR et les devises/FairPrice
+- [x] Ajouter les tests déterministes et appareil de l’audit 24
+- [x] Régénérer, valider et publier la version corrigée

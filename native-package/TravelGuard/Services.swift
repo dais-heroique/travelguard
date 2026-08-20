@@ -20,6 +20,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     @Published private(set) var errorMessage: String?
     @Published private(set) var geocodingErrorMessage: String?
     @Published private(set) var lastUpdated: Date?
+    @Published private(set) var requestCompletedAt: Date?
     @Published private(set) var notificationPermission: UNAuthorizationStatus = .notDetermined
     private let manager = CLLocationManager()
     private let geocoder = CLGeocoder()
@@ -194,6 +195,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        requestCompletedAt = Date()
         guard let location = locations.last, location.horizontalAccuracy >= 0 else { return }
         coordinate = location.coordinate
         accuracy = location.horizontalAccuracy
@@ -229,6 +231,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        requestCompletedAt = Date()
         let code = (error as? CLError)?.code
         print("[TravelGuard][Location] error=\(String(describing: code)) description=\(error.localizedDescription)")
         if code == .denied { errorMessage = "Autorisation de localisation refusée. Ouvrez Réglages." }
@@ -286,6 +289,7 @@ final class TravelGuardStore: ObservableObject {
     private let riskCacheURL: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("travelguard-risks-v1.json")
     private let maxCachedRisks = 5000
     private let maxCacheBytes = 2 * 1024 * 1024
+    private let cacheMaxAge: TimeInterval = 365 * 24 * 60 * 60
     @Published private(set) var lastRiskSyncAt: Date?
     private var latestRiskSyncGeneration = 0
     var riskDataFreshnessLabel: String {
@@ -295,11 +299,20 @@ final class TravelGuardStore: ObservableObject {
         return "Données mises à jour il y a \(minutes / 60) h"
     }
     var riskDataIsStale: Bool { guard let lastRiskSyncAt else { return true }; return Date().timeIntervalSince(lastRiskSyncAt) > 24 * 60 * 60 }
+    var protectionStatusLabel: String {
+        if !storeHasRisks { return "Alertes indisponibles" }
+        if !location.hasPermission { return "Localisation nécessaire" }
+        if location.accuracy ?? 999 > 200 { return "GPS imprécis" }
+        if location.notificationPermission != .authorized || !location.monitoringActive { return riskDataIsStale ? "Données anciennes" : "Protection partielle" }
+        if riskDataIsStale { return "Données anciennes" }
+        return "Protection active"
+    }
+    var storeHasRisks: Bool { !risks.isEmpty }
 
     init() {
         onboardingComplete = UserDefaults.standard.bool(forKey: "onboardingComplete")
         lastRiskSyncAt = nil
-        if let data = try? Data(contentsOf: riskCacheURL), let envelope = try? JSONDecoder().decode(RiskCacheEnvelope.self, from: data), envelope.schemaVersion == 1 { risks = RiskPlace.validated(Array(envelope.risks.prefix(maxCachedRisks))); lastRiskSyncAt = envelope.savedAt } else { risks = trustedRisks }
+        if let data = try? Data(contentsOf: riskCacheURL), let envelope = try? JSONDecoder().decode(RiskCacheEnvelope.self, from: data), envelope.schemaVersion == 1, envelope.savedAt <= Date().addingTimeInterval(300), envelope.savedAt >= Date().addingTimeInterval(-cacheMaxAge) { risks = RiskPlace.validated(Array(envelope.risks.prefix(maxCachedRisks))); lastRiskSyncAt = envelope.savedAt } else { risks = trustedRisks }
         location.updateRisks(risks)
     }
 

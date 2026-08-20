@@ -27,7 +27,7 @@ enum OCRSupport {
     }
 
     static func currency(for countryCode: String) -> String {
-        switch countryCode.uppercased() { case "US", "CA": return "USD"; case "GB": return "GBP"; case "CH": return "CHF"; case "JP": return "JPY"; default: return "EUR" }
+        switch countryCode.uppercased() { case "US", "CA": return "USD"; case "GB": return "GBP"; case "CH": return "CHF"; case "JP": return "JPY"; case "FR", "DE", "ES", "IT", "PT", "BE", "NL", "IE", "AT": return "EUR"; default: return "INCONNUE" }
     }
 
     static func parse(_ lines: [String], fallbackCurrency: String) -> OCRSummary {
@@ -50,6 +50,12 @@ enum OCRSupport {
     }
 }
 
+enum OCRAssessment: Equatable {
+    case coherent, unusual, abusive, undetermined
+    var title: String { switch self { case .coherent: return "Prix cohérent"; case .unusual: return "Prix inhabituel"; case .abusive: return "Prix probablement abusif"; case .undetermined: return "Impossible à déterminer" } }
+    var icon: String { switch self { case .coherent: return "checkmark.circle.fill"; case .unusual: return "exclamationmark.triangle.fill"; case .abusive: return "xmark.octagon.fill"; case .undetermined: return "questionmark.circle.fill" } }
+}
+
 struct OCRSummary: Sendable {
     var currency = ""
     var subtotal: Double?
@@ -66,6 +72,13 @@ struct OCRSummary: Sendable {
     }
     var difference: Double? { guard let total, let calculatedTotal else { return nil }; return total - calculatedTotal }
     var hasData: Bool { !amounts.isEmpty || subtotal != nil || tax != nil || service != nil || total != nil }
+    func assessment(suspectLines: Set<String>) -> OCRAssessment {
+        guard hasData, currency != "INCONNUE" else { return .undetermined }
+        if !suspectLines.isEmpty { return .abusive }
+        if let difference, abs(difference) > 0.05 { return .unusual }
+        guard total != nil || subtotal != nil || !itemAmounts.isEmpty else { return .undetermined }
+        return .coherent
+    }
 }
 
 struct ScannerView: View {
@@ -85,7 +98,8 @@ struct ScannerView: View {
             PhotosPicker(selection: $selectedItem, matching: .images) { Label("Choisir une photo", systemImage: "photo").font(.headline).foregroundStyle(TGColor.ink).frame(maxWidth: .infinity).padding().background(.white).clipShape(RoundedRectangle(cornerRadius: 16)) }.onChange(of: selectedItem) { _, item in Task { await analyze(item) } }
             if isAnalyzing { ProgressView("Analyse locale du document…").padding(.vertical) }
             if !recognizedLines.isEmpty { VStack(alignment: .leading, spacing: 10) {
-                Label("Résultat du contrôle", systemImage: suspectLines.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill").font(.headline).foregroundStyle(suspectLines.isEmpty ? .green : TGColor.coral)
+                let assessment = summary.assessment(suspectLines: suspectLines)
+                Label(assessment.title, systemImage: assessment.icon).font(.headline).foregroundStyle(assessment == .coherent ? .green : assessment == .abusive ? .red : assessment == .unusual ? TGColor.amber : TGColor.muted)
                 ForEach(recognizedLines, id: \.self) { line in Text(line).font(.body.weight(suspectLines.contains(line) ? .semibold : .regular)).foregroundStyle(suspectLines.contains(line) ? .red : TGColor.ink).padding(.vertical, 3) }
                 if !suspectLines.isEmpty { Text("Vérifiez les frais, taxes, commissions et suppléments avant de payer.").font(.footnote).foregroundStyle(.red) }
                 if summary.hasData { VStack(alignment: .leading, spacing: 6) { Text("Lecture structurée").font(.subheadline.bold()); if !summary.itemAmounts.isEmpty { Text("Articles détectés : \(summary.itemAmounts.reduce(0, +), specifier: \"%.2f\") \(summary.currency)") }; if let subtotal = summary.subtotal { Text("Sous-total indiqué : \(subtotal, specifier: \"%.2f\") \(summary.currency)") }; if let tax = summary.tax { Text("Taxes : \(tax, specifier: \"%.2f\") \(summary.currency)") }; if let service = summary.service { Text("Service : \(service, specifier: \"%.2f\") \(summary.currency)") }; if let total = summary.total { Text("Total détecté : \(total, specifier: \"%.2f\") \(summary.currency)").fontWeight(.bold) }; if let calculated = summary.calculatedTotal, let difference = summary.difference { Text(abs(difference) <= 0.05 ? "Total cohérent avec les lignes détectées : \(calculated, specifier: \"%.2f\") \(summary.currency)" : "Écart arithmétique à vérifier : \(difference, specifier: \"%.2f\") \(summary.currency)").foregroundStyle(abs(difference) <= 0.05 ? .green : .red).font(.footnote.bold()) }; Text("La comparaison à un tarif officiel n’est pas disponible sans source locale autorisée.").font(.caption).foregroundStyle(TGColor.muted) }.padding(.top, 8) }

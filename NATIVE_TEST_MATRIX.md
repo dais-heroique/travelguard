@@ -75,3 +75,17 @@ Le sandbox ne possède pas Xcode ni un iPhone connecté. Sur le Mac, il faut ouv
 | Cache vieux de plus de 24 h | L’interface affiche la fraîcheur et ne dit pas « aucun risque » sans réserve | Appareil/Xcode |
 | Réponse GPS non reçue sous 15 secondes | L’indicateur s’arrête et propose de réessayer | Appareil/Xcode |
 | Zoom/déplacement de la carte | La carte et la liste utilisent exactement la même sélection viewport | Appareil/Xcode |
+
+## Audit 24 — concurrence GPS, statut de protection, OCR et cache
+
+| Scénario | Résultat attendu | Validation |
+|---|---|---|
+| Appuis rapides successifs sur Recentrer | La Task GPS précédente est annulée et ne peut pas terminer la recherche suivante | Appareil/Xcode |
+| Fix GPS reçu avant 15 secondes | L’indicateur disparaît immédiatement et aucun timeout ultérieur ne s’affiche | Appareil/Xcode |
+| Refus, erreur GPS ou service désactivé | La recherche se termine, le message d’action est explicite et l’état ne reste pas bloqué | Appareil/Xcode |
+| Cache avec schéma inconnu ou `savedAt` futur | Le cache est ignoré et l’interface demande une nouvelle synchronisation | Test déterministe |
+| Source officielle, partenaire, communautaire ou inconnue | La confiance varie selon la réputation de la source et jamais selon le score de danger seul | Test déterministe |
+| Carte avec forte densité de risques | La sélection combine score, proximité et cellule géographique, avec plafond réduit au zoom mondial | Test déterministe + appareil |
+| Accueil et Sécurité | Le même statut Protection active/partielle/GPS imprécis/données anciennes est affiché | Appareil/Xcode |
+| OCR sans prix, devise inconnue, écart de total ou libellés sensibles | Résultat explicite : impossible à déterminer, inhabituel ou probablement abusif ; aucune certitude officielle | Test déterministe + appareil |
+| Référence FairPrice sans devise/source autorisée | Aucune conversion ni comparaison n’est présentée | Test déterministe |
