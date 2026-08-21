@@ -1,4 +1,11 @@
-import Foundation
+from pathlib import Path
+import re
+
+path = Path('/home/ubuntu/travelguard/scripts/generate_native_ios.py')
+text = path.read_text()
+start = text.index("'RiskMapView.swift': r'''", text.index("'RiskMapView.swift': r'''"))
+end = text.index("''',\n'ScannerView.swift': r'''", start)
+new_block = r'''import Foundation
 import MapKit
 import SwiftUI
 
@@ -180,13 +187,13 @@ struct FullScreenRiskMapView: View {
     @Binding var region: MKCoordinateRegion
     @Binding var selected: RiskPlace?
     private var displayedRisks: [RiskPlace] { RiskPlace.inViewport(region, risks: store.risks) }
-    private func recenter() { if store.location.isUsingCachedLocation { store.location.refresh(); return }; guard let coordinate = store.location.coordinate else { store.location.requestPermission(); return }; region.center = coordinate }
+    private func recenter() { guard let coordinate = store.location.coordinate else { store.location.requestPermission(); return }; region.center = coordinate }
     private func zoom(by factor: Double) { region.span = MKCoordinateSpan(latitudeDelta: min(max(region.span.latitudeDelta * factor, 0.001), 180), longitudeDelta: min(max(region.span.longitudeDelta * factor, 0.001), 360)) }
     var body: some View {
         NavigationStack {
             Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: displayedRisks) { risk in
                 MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: risk.latitude, longitude: risk.longitude)) {
-                    Button { selected = risk } label: { Image(systemName: "circle.fill").frame(width: 44, height: 44).foregroundStyle(.red).padding(10).background(.white).clipShape(Circle()) }
+                    Button { selected = risk } label: { Image(systemName: "circle.fill").foregroundStyle(.red).padding(10).background(.white).clipShape(Circle()) }
                 }
             }
             .mapControls { MapUserLocationButton(); MapCompass(); MapScaleView() }
@@ -216,3 +223,7 @@ struct RiskDetailView: View {
         .presentationDetents([.medium])
     }
 }
+'''
+text = text[:start] + "'RiskMapView.swift': r'''" + new_block + text[end:]
+path.write_text(text)
+print('RiskMapView generator block replaced')

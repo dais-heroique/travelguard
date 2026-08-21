@@ -389,3 +389,7 @@
 - [x] Réparer CameraPicker et ses accolades au niveau fichier
 - [x] Corriger les if let imbriqués et l’extension OCRSupport
 - [x] Régénérer, valider et sauvegarder la version corrigée
+
+# Correction RiskMapView
+- [x] Réparer l’accolade fermant prématurément le body de RiskMapView
+- [x] Régénérer et valider RiskMapView.swift
