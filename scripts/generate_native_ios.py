@@ -1006,17 +1006,20 @@ struct ScannerView: View {
     @State private var showingCamera = false
     @State private var analysisTask: Task<Void, Never>?
     @State private var analysisGeneration = 0
+    private func formatted(_ value: Double) -> String { String(format: "%.2f", value) }
     @ViewBuilder private var structuredSummaryView: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Lecture structurée").font(.subheadline.bold())
-            if !summary.itemAmounts.isEmpty { Text("Articles détectés : \(String(format: \"%.2f\", summary.itemAmounts.reduce(0, +))) \(summary.currency)") }
-            if let subtotal = summary.subtotal { Text("Sous-total indiqué : \(String(format: \"%.2f\", subtotal)) \(summary.currency)") }
-            if let tax = summary.tax { Text("Taxes : \(String(format: \"%.2f\", tax)) \(summary.currency)") }
-            if let service = summary.service { Text("Service : \(String(format: \"%.2f\", service)) \(summary.currency)") }
-            if let total = summary.total { Text("Total détecté : \(String(format: \"%.2f\", total)) \(summary.currency)").fontWeight(.bold) }
-            if let calculated = summary.calculatedTotal, let difference = summary.difference {
-                let coherent = abs(difference) <= 0.05
-                Text(coherent ? "Total cohérent avec les lignes détectées : \(String(format: \"%.2f\", calculated)) \(summary.currency)" : "Écart arithmétique à vérifier : \(String(format: \"%.2f\", difference)) \(summary.currency)").foregroundStyle(coherent ? .green : .red).font(.footnote.bold())
+            if !summary.itemAmounts.isEmpty { Text(verbatim: "Articles détectés : " + formatted(summary.itemAmounts.reduce(0, +)) + " " + summary.currency) }
+            if let subtotal = summary.subtotal { Text(verbatim: "Sous-total indiqué : " + formatted(subtotal) + " " + summary.currency) }
+            if let tax = summary.tax { Text(verbatim: "Taxes : " + formatted(tax) + " " + summary.currency) }
+            if let service = summary.service { Text(verbatim: "Service : " + formatted(service) + " " + summary.currency) }
+            if let total = summary.total { Text(verbatim: "Total détecté : " + formatted(total) + " " + summary.currency).fontWeight(.bold) }
+            if let calculated = summary.calculatedTotal {
+                if let difference = summary.difference {
+                    let coherent = abs(difference) <= 0.05
+                    Text(verbatim: (coherent ? "Total cohérent avec les lignes détectées : " : "Écart arithmétique à vérifier : ") + formatted(coherent ? calculated : difference) + " " + summary.currency).foregroundStyle(coherent ? .green : .red).font(.footnote.bold())
+                }
             }
             Text("Résultat limité au document : le total peut être mathématiquement cohérent sans être un prix juste. Aucune comparaison FairPrice officielle n’est disponible sans source locale autorisée.").font(.caption).foregroundStyle(TGColor.muted)
         }
@@ -1086,7 +1089,35 @@ extension OCRSupport {
     }
 }
 
-struct CameraPicker: UIViewControllerRepresentable { let onImage: (UIImage) -> Void; func makeCoordinator() -> Coordinator { Coordinator(onImage: onImage) }; func makeUIViewController(context: Context) -> UIViewController { guard UIImagePickerController.isSourceTypeAvailable(.camera) else { let alert = UIAlertController(title: "Caméra indisponible", message: "Choisissez une photo depuis votre bibliothèque.", preferredStyle: .alert); alert.addAction(UIAlertAction(title: "OK", style: .default)); return alert }; let picker = UIImagePickerController(); picker.sourceType = .camera; picker.delegate = context.coordinator; return picker }; func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}; final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate { let onImage: (UIImage) -> Void; init(onImage: @escaping (UIImage) -> Void) { self.onImage = onImage }; func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) { if let image = info[.originalImage] as? UIImage { onImage(image) }; picker.dismiss(animated: true) }; func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { picker.dismiss(animated: true) } } }''',
+struct CameraPicker: UIViewControllerRepresentable {
+    let onImage: (UIImage) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onImage: onImage) }
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            picker.sourceType = .photoLibrary
+            return picker
+        }
+        picker.sourceType = .camera
+        picker.allowsEditing = false
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
+
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let onImage: (UIImage) -> Void
+        init(onImage: @escaping (UIImage) -> Void) { self.onImage = onImage }
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let image = info[.originalImage] as? UIImage { onImage(image) }
+            picker.dismiss(animated: true)
+        }
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { picker.dismiss(animated: true) }
+    }
+}''',
 'SafetyView.swift': r'''import CoreLocation
 import SwiftUI
 import UIKit

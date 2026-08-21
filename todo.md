@@ -382,3 +382,10 @@
 - [x] Corriger l’interpolation des montants OCR dans ScannerView.swift
 - [x] Corriger la portée de centerInitiallyIfNeeded dans RiskMapView.swift
 - [x] Régénérer et valider le projet natif après correction
+
+# Nouvelle correction de compilation Swift
+- [x] Réécrire les chaînes OCR sans interpolations imbriquées
+- [x] Séparer les fonctions de ScannerView et RiskMapView au niveau de type
+- [x] Réparer CameraPicker et ses accolades au niveau fichier
+- [x] Corriger les if let imbriqués et l’extension OCRSupport
+- [x] Régénérer, valider et sauvegarder la version corrigée
