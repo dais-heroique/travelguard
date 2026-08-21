@@ -377,3 +377,8 @@
 - [x] Auditer et corriger OCR, permissions, onboarding et accès aux réglages
 - [x] Ajouter les tests adversariaux de l’audit 28
 - [x] Régénérer, valider, synchroniser et sauvegarder la version finale
+
+# Corrections compilation Swift signalées
+- [x] Corriger l’interpolation des montants OCR dans ScannerView.swift
+- [x] Corriger la portée de centerInitiallyIfNeeded dans RiskMapView.swift
+- [x] Régénérer et valider le projet natif après correction

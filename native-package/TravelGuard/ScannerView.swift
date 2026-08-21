@@ -101,6 +101,22 @@ struct ScannerView: View {
     @State private var showingCamera = false
     @State private var analysisTask: Task<Void, Never>?
     @State private var analysisGeneration = 0
+    @ViewBuilder private var structuredSummaryView: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Lecture structurée").font(.subheadline.bold())
+            if !summary.itemAmounts.isEmpty { Text("Articles détectés : \(String(format: \"%.2f\", summary.itemAmounts.reduce(0, +))) \(summary.currency)") }
+            if let subtotal = summary.subtotal { Text("Sous-total indiqué : \(String(format: \"%.2f\", subtotal)) \(summary.currency)") }
+            if let tax = summary.tax { Text("Taxes : \(String(format: \"%.2f\", tax)) \(summary.currency)") }
+            if let service = summary.service { Text("Service : \(String(format: \"%.2f\", service)) \(summary.currency)") }
+            if let total = summary.total { Text("Total détecté : \(String(format: \"%.2f\", total)) \(summary.currency)").fontWeight(.bold) }
+            if let calculated = summary.calculatedTotal, let difference = summary.difference {
+                let coherent = abs(difference) <= 0.05
+                Text(coherent ? "Total cohérent avec les lignes détectées : \(String(format: \"%.2f\", calculated)) \(summary.currency)" : "Écart arithmétique à vérifier : \(String(format: \"%.2f\", difference)) \(summary.currency)").foregroundStyle(coherent ? .green : .red).font(.footnote.bold())
+            }
+            Text("Résultat limité au document : le total peut être mathématiquement cohérent sans être un prix juste. Aucune comparaison FairPrice officielle n’est disponible sans source locale autorisée.").font(.caption).foregroundStyle(TGColor.muted)
+        }
+    }
+
     var body: some View {
         NavigationStack { ScrollView { VStack(alignment: .leading, spacing: 18) {
             Text("CONTRÔLE INTELLIGENT").font(.caption.weight(.heavy)).tracking(1.2).foregroundStyle(TGColor.muted)
@@ -114,7 +130,7 @@ struct ScannerView: View {
                 Label(assessment.title, systemImage: assessment.icon).font(.headline).foregroundStyle(assessment == .coherent ? .green : assessment == .abusive ? .red : assessment == .unusual ? TGColor.amber : TGColor.muted)
                 ForEach(recognizedLines, id: \.self) { line in Text(line).font(.body.weight(suspectLines.contains(line) ? .semibold : .regular)).foregroundStyle(suspectLines.contains(line) ? .red : TGColor.ink).padding(.vertical, 3) }
                 if !suspectLines.isEmpty { Text("Vérifiez les frais, taxes, commissions et suppléments avant de payer.").font(.footnote).foregroundStyle(.red) }
-                if summary.hasData { VStack(alignment: .leading, spacing: 6) { Text("Lecture structurée").font(.subheadline.bold()); if !summary.itemAmounts.isEmpty { Text("Articles détectés : \(summary.itemAmounts.reduce(0, +), specifier: \"%.2f\") \(summary.currency)") }; if let subtotal = summary.subtotal { Text("Sous-total indiqué : \(subtotal, specifier: \"%.2f\") \(summary.currency)") }; if let tax = summary.tax { Text("Taxes : \(tax, specifier: \"%.2f\") \(summary.currency)") }; if let service = summary.service { Text("Service : \(service, specifier: \"%.2f\") \(summary.currency)") }; if let total = summary.total { Text("Total détecté : \(total, specifier: \"%.2f\") \(summary.currency)").fontWeight(.bold) }; if let calculated = summary.calculatedTotal, let difference = summary.difference { Text(abs(difference) <= 0.05 ? "Total cohérent avec les lignes détectées : \(calculated, specifier: \"%.2f\") \(summary.currency)" : "Écart arithmétique à vérifier : \(difference, specifier: \"%.2f\") \(summary.currency)").foregroundStyle(abs(difference) <= 0.05 ? .green : .red).font(.footnote.bold()) }; Text("Résultat limité au document : le total peut être mathématiquement cohérent sans être un prix juste. Aucune comparaison FairPrice officielle n’est disponible sans source locale autorisée.").font(.caption).foregroundStyle(TGColor.muted) }.padding(.top, 8) }
+                if summary.hasData { structuredSummaryView.padding(.top, 8) }
             }.tgCard() } else if !isAnalyzing { VStack(alignment: .leading, spacing: 8) { Label("Aucun document analysé", systemImage: "viewfinder").font(.headline); Text("Prenez une photo ou choisissez une image pour lancer la détection du texte.").font(.subheadline).foregroundStyle(TGColor.muted) }.tgCard() }
             Label(store.network.isChecking ? "Vérification du réseau…" : store.network.isOnline ? "En ligne · OCR local disponible" : "Hors ligne · OCR local disponible", systemImage: store.network.isOnline ? "wifi" : "wifi.slash").font(.footnote).foregroundStyle(TGColor.muted).padding(.top, 8)
         }.padding(20).padding(.bottom, 30) }.background(TGColor.ivory).navigationTitle("").navigationBarHidden(true).sheet(isPresented: $showingCamera) { CameraPicker { image in Task { await recognize(image) } } } }
