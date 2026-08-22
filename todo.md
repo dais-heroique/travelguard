@@ -470,3 +470,9 @@
 - [x] Auditer les flux limites localisation, réseau, cache, carte et OCR
 - [x] Corriger chaque bug reproductible et ajouter une régression
 - [x] Régénérer, valider et sauvegarder la version corrigée
+
+# Nouvelle passe ciblée de bugs
+- [x] Vérifier les erreurs, annulations et états limites
+- [x] Vérifier cohérence SwiftUI/Expo, permissions et cache
+- [x] Corriger les bugs confirmés et ajouter des régressions
+- [x] Régénérer, valider et sauvegarder la passe finale

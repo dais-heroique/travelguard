@@ -426,7 +426,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
                     return
                 }
                 if self.authorization == .authorizedAlways { self.manager.startMonitoringSignificantLocationChanges(); self.manager.requestLocation() }
-                else { self.errorMessage = "Autorisez la localisation Toujours pour installer les alertes autour de vous." }
+                else { self.proximityAlertsEnabled = false; self.monitoringActive = false; UserDefaults.standard.set(false, forKey: "alertsEnabled"); self.manager.stopMonitoringSignificantLocationChanges(); self.errorMessage = "Autorisez la localisation Toujours pour installer les alertes autour de vous." }
             }
         }
     }
@@ -438,8 +438,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
                 self.notificationPermission = settings.authorizationStatus
                 self.manager.monitoredRegions.forEach { self.manager.stopMonitoring(for: $0) }
                 self.monitoringActive = false
-                if settings.authorizationStatus == .authorized && self.authorization == .authorizedAlways { self.manager.startMonitoringSignificantLocationChanges(); self.manager.requestLocation() }
-                else if settings.authorizationStatus != .authorized { self.proximityAlertsEnabled = false; self.monitoringActive = false; self.manager.stopMonitoringSignificantLocationChanges(); UserDefaults.standard.set(false, forKey: "alertsEnabled") }
+                if settings.authorizationStatus == .authorized && self.authorization == .authorizedAlways { self.proximityAlertsEnabled = true; self.manager.startMonitoringSignificantLocationChanges(); self.manager.requestLocation() }
+                else { self.proximityAlertsEnabled = false; self.monitoringActive = false; self.manager.stopMonitoringSignificantLocationChanges(); UserDefaults.standard.set(false, forKey: "alertsEnabled"); if self.authorization != .authorizedAlways { self.errorMessage = "Autorisez la localisation Toujours pour installer les alertes autour de vous." } }
             }
         }
     }
@@ -640,7 +640,7 @@ final class TravelGuardStore: ObservableObject {
         onboardingComplete = UserDefaults.standard.bool(forKey: "onboardingComplete")
         lastRiskSyncAt = nil
         try? FileManager.default.createDirectory(at: riskCacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if let data = try? Data(contentsOf: riskCacheURL), let envelope = try? JSONDecoder().decode(RiskCacheEnvelope.self, from: data), envelope.schemaVersion == 2, envelope.savedAt <= Date().addingTimeInterval(300), envelope.savedAt >= Date().addingTimeInterval(-cacheMaxAge) { risks = RiskPlace.validated(Array(envelope.risks.prefix(maxCachedRisks))); lastRiskSyncAt = envelope.savedAt } else { risks = trustedRisks }
+        if let data = try? Data(contentsOf: riskCacheURL), let envelope = try? JSONDecoder().decode(RiskCacheEnvelope.self, from: data), envelope.schemaVersion == 2, envelope.savedAt <= Date().addingTimeInterval(300), envelope.savedAt >= Date().addingTimeInterval(-cacheMaxAge), envelope.expiresAt >= Date() { risks = RiskPlace.validated(Array(envelope.risks.prefix(maxCachedRisks))); lastRiskSyncAt = envelope.savedAt } else { risks = trustedRisks }
         location.updateRisks(risks)
         location.restoreProximityAlertsIfAuthorized()
     }

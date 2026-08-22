@@ -75,7 +75,9 @@ assert "riskDataIsStale" in all_swift
 assert "frame(width: 44, height: 44)" in all_swift
 assert "location.horizontalAccuracy > 200" in all_swift
 assert "manager.monitoredRegions.forEach { manager.stopMonitoring" in all_swift
-assert "settings.authorizationStatus != .authorized" in all_swift
+assert "settings.authorizationStatus == .authorized" in all_swift
+assert "self.proximityAlertsEnabled = false" in all_swift
+assert "self.authorization != .authorizedAlways" in all_swift
 assert "isUsingCachedLocation { store.location.refresh(); return }" in all_swift
 assert "hasUserInteractedWithMap" in all_swift
 assert "!hasUserInteractedWithMap" in all_swift
