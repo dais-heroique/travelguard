@@ -412,3 +412,18 @@
 - [x] Corriger RiskEvidence et RiskPlace pour Codable/Encodable
 - [x] Supprimer le chemin absolu /home/ubuntu du générateur natif
 - [x] Régénérer et valider depuis le dossier local macOS
+
+# Remise à zéro du clone macOS
+- [ ] Documenter le nettoyage ciblé du dossier Downloads/travelguard
+- [ ] Vérifier le clonage complet et l’intégrité de project.pbxproj
+- [ ] Fournir la procédure d’ouverture Xcode sans toucher aux données iPhone
+
+# Diagnostic ouverture Xcode après génération macOS
+- [ ] Vérifier le project.pbxproj fraîchement généré
+- [ ] Vérifier les fichiers Swift et les références de groupe Xcode
+- [ ] Documenter l’ouverture du projet généré sans commande destructive
+
+# Portabilité du réécriveur Xcode
+- [x] Supprimer le chemin absolu /home/ubuntu de rewrite_native_pbx.py
+- [x] Régénérer un projet Xcode complet depuis macOS
+- [x] Valider la commande finale d’ouverture Xcode

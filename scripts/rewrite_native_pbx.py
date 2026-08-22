@@ -1,7 +1,7 @@
 from pathlib import Path
 import re
 
-ROOT = Path('/home/ubuntu/travelguard/native-package')
+ROOT = Path(__file__).resolve().parents[1] / 'native-package'
 APP = ROOT / 'TravelGuard'
 PROJ = ROOT / 'TravelGuard.xcodeproj'
 
