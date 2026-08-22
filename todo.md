@@ -427,3 +427,8 @@
 - [x] Supprimer le chemin absolu /home/ubuntu de rewrite_native_pbx.py
 - [x] Régénérer un projet Xcode complet depuis macOS
 - [x] Valider la commande finale d’ouverture Xcode
+
+# Parse error Xcode persistant
+- [ ] Diagnostiquer project.pbxproj généré et son format de parse
+- [ ] Remplacer la génération fragile par une structure Xcode valide
+- [ ] Valider le paquet Xcode sur macOS et documenter la récupération
