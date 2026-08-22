@@ -1,8 +1,9 @@
 from pathlib import Path
 import json
 import shutil
+from pathlib import Path
 
-ROOT = Path('/home/ubuntu/travelguard/native-package')
+ROOT = Path(__file__).resolve().parents[1] / 'native-package'
 APP = ROOT / 'TravelGuard'
 PROJ = ROOT / 'TravelGuard.xcodeproj'
 APP.mkdir(parents=True, exist_ok=True)
@@ -44,6 +45,7 @@ struct RiskEvidence: Codable, Hashable {
     enum CodingKeys: String, CodingKey { case id, sourceId, source, type, observedAt, verified }
     init(id: String, sourceId: String, type: EvidenceType, observedAt: Date, verified: Bool) { self.id = id; self.sourceId = sourceId; self.type = type; self.observedAt = observedAt; self.verified = verified }
     init(from decoder: Decoder) throws { let c = try decoder.container(keyedBy: CodingKeys.self); id = try c.decode(String.self, forKey: .id); sourceId = try c.decodeIfPresent(String.self, forKey: .sourceId) ?? (try c.decodeIfPresent(String.self, forKey: .source) ?? ""); type = try c.decodeIfPresent(EvidenceType.self, forKey: .type) ?? .unknown; observedAt = try c.decode(Date.self, forKey: .observedAt); verified = try c.decodeIfPresent(Bool.self, forKey: .verified) ?? false }
+    func encode(to encoder: Encoder) throws { var c = encoder.container(keyedBy: CodingKeys.self); try c.encode(id, forKey: .id); try c.encode(sourceId, forKey: .sourceId); try c.encode(type, forKey: .type); try c.encode(observedAt, forKey: .observedAt); try c.encode(verified, forKey: .verified) }
 }
 
 struct RiskPlace: Identifiable, Hashable, Codable {
@@ -138,6 +140,8 @@ struct RiskPlace: Identifiable, Hashable, Codable {
         signals = try c.decodeIfPresent([String].self, forKey: .signals) ?? []; source = try c.decode(String.self, forKey: .source); updatedAt = try c.decode(Date.self, forKey: .updatedAt); reportCount = try c.decodeIfPresent(Int.self, forKey: .reportCount) ?? 0
         sourceType = try c.decodeIfPresent(SourceTrust.self, forKey: .sourceType) ?? .unknown; evidence = try c.decodeIfPresent([RiskEvidence].self, forKey: .evidence) ?? []; alertRadius = try c.decodeIfPresent(CLLocationDistance.self, forKey: .alertRadius) ?? 250; revokedAt = try c.decodeIfPresent(Date.self, forKey: .revokedAt); sourceRecord = try c.decodeIfPresent(VerifiedSource.self, forKey: .sourceRecord); locationPrecision = try c.decodeIfPresent(LocationPrecision.self, forKey: .locationPrecision) ?? .point; serverReliabilityIndex = try c.decodeIfPresent(Int.self, forKey: .reliabilityIndex) ?? c.decodeIfPresent(Int.self, forKey: .confidenceScore)
     }
+
+    func encode(to encoder: Encoder) throws { var c = encoder.container(keyedBy: CodingKeys.self); try c.encode(id, forKey: .id); try c.encode(name, forKey: .name); try c.encode(category, forKey: .category); try c.encode(score, forKey: .score); try c.encode(summary, forKey: .summary); try c.encode(latitude, forKey: .latitude); try c.encode(longitude, forKey: .longitude); try c.encode(signals, forKey: .signals); try c.encode(source, forKey: .source); try c.encode(updatedAt, forKey: .updatedAt); try c.encode(reportCount, forKey: .reportCount); try c.encode(sourceType, forKey: .sourceType); try c.encode(evidence, forKey: .evidence); try c.encode(alertRadius, forKey: .alertRadius); try c.encodeIfPresent(revokedAt, forKey: .revokedAt); try c.encodeIfPresent(sourceRecord, forKey: .sourceRecord); try c.encode(locationPrecision, forKey: .locationPrecision); try c.encodeIfPresent(serverReliabilityIndex, forKey: .reliabilityIndex) }
 
     func distance(from coordinate: CLLocationCoordinate2D?) -> CLLocationDistance? {
         guard let coordinate else { return nil }

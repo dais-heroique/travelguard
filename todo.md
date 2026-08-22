@@ -407,3 +407,8 @@
 # Correction Core Location
 - [x] Corriger l’affectation CLLocationCoordinate2D vers CLLocation dans Services.swift
 - [x] Régénérer et valider le natif après correction Core Location
+
+# Correction Codable et portabilité macOS
+- [x] Corriger RiskEvidence et RiskPlace pour Codable/Encodable
+- [x] Supprimer le chemin absolu /home/ubuntu du générateur natif
+- [x] Régénérer et valider depuis le dossier local macOS
