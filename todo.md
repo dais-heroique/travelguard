@@ -457,3 +457,10 @@
 - [x] Remplacer le libellé « aperçu non canonique » par un état clair
 - [x] Supprimer le panneau vide ou le remplir avec des données honnêtes
 - [x] Valider et sauvegarder l’écran de secours
+
+# Recherche systématique de bugs
+- [x] Auditer la structure Xcode, les chemins et les références de fichiers
+- [x] Auditer localisation, réseau, cache, carte et géofencing
+- [x] Auditer OCR, onboarding, permissions et états UX
+- [x] Corriger les bugs reproductibles et ajouter les régressions
+- [x] Régénérer, valider et sauvegarder la version corrigée

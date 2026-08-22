@@ -1322,7 +1322,7 @@ for rel, content in files.items():
     path = APP / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
-source_icon = Path('/home/ubuntu/travelguard/assets/images/icon.png')
+source_icon = Path(__file__).resolve().parents[1] / 'assets' / 'images' / 'icon.png'
 if source_icon.exists():
     shutil.copyfile(source_icon, APP / 'Assets.xcassets' / 'AppIcon.appiconset' / 'Icon-1024.png')
 
