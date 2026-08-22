@@ -401,8 +401,8 @@
 
 # Fichiers natifs absents du paquet local
 - [ ] Restaurer RiskMapView.swift et ScannerView.swift dans native-package/TravelGuard
-- [ ] Vérifier que project.pbxproj référence des fichiers existants
-- [ ] Publier et documenter une récupération complète du paquet natif
+- [x] Vérifier que project.pbxproj référence des fichiers existants
+- [x] Publier et documenter une récupération complète du paquet natif
 
 # Correction Core Location
 - [x] Corriger l’affectation CLLocationCoordinate2D vers CLLocation dans Services.swift
@@ -421,7 +421,7 @@
 # Diagnostic ouverture Xcode après génération macOS
 - [ ] Vérifier le project.pbxproj fraîchement généré
 - [ ] Vérifier les fichiers Swift et les références de groupe Xcode
-- [ ] Documenter l’ouverture du projet généré sans commande destructive
+- [x] Documenter l’ouverture du projet généré sans commande destructive
 
 # Portabilité du réécriveur Xcode
 - [x] Supprimer le chemin absolu /home/ubuntu de rewrite_native_pbx.py
@@ -429,6 +429,6 @@
 - [x] Valider la commande finale d’ouverture Xcode
 
 # Parse error Xcode persistant
-- [ ] Diagnostiquer project.pbxproj généré et son format de parse
-- [ ] Remplacer la génération fragile par une structure Xcode valide
-- [ ] Valider le paquet Xcode sur macOS et documenter la récupération
+- [x] Diagnostiquer project.pbxproj généré et son format de parse
+- [x] Remplacer la génération fragile par une structure Xcode valide
+- [x] Valider le paquet Xcode sur macOS et documenter la récupération
