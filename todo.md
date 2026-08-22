@@ -476,3 +476,8 @@
 - [x] Vérifier cohérence SwiftUI/Expo, permissions et cache
 - [x] Corriger les bugs confirmés et ajouter des régressions
 - [x] Régénérer, valider et sauvegarder la passe finale
+
+# Correction Date optionnelle
+- [x] Rechercher les utilisations Date? non déballées dans les sources natives
+- [x] Corriger les usages Date? comme Date et ajouter une régression
+- [x] Régénérer, valider et sauvegarder le correctif

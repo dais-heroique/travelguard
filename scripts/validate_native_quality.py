@@ -72,6 +72,10 @@ assert "sourceSignal" in all_swift
 assert ".prefix(300)" not in all_swift
 assert "riskDataFreshnessLabel" in all_swift
 assert "riskDataIsStale" in all_swift
+assert "guard let lastRiskSyncAt else" in all_swift
+assert "savedAt: lastRiskSyncAt ?? Date()" in all_swift
+assert "guard let lastUpdated else" in all_swift
+assert "timeIntervalSince(lastRiskSyncAt)" in all_swift
 assert "frame(width: 44, height: 44)" in all_swift
 assert "location.horizontalAccuracy > 200" in all_swift
 assert "manager.monitoredRegions.forEach { manager.stopMonitoring" in all_swift
