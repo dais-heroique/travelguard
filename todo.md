@@ -452,3 +452,8 @@
 - [x] Remplacer le bloc aperçu vide par un état de protection utile
 - [x] Afficher un état honnête selon synchronisation, données et localisation
 - [x] Régénérer, valider et sauvegarder l’accueil
+
+# Nettoyage écran Expo visible
+- [x] Remplacer le libellé « aperçu non canonique » par un état clair
+- [x] Supprimer le panneau vide ou le remplir avec des données honnêtes
+- [x] Valider et sauvegarder l’écran de secours

@@ -40,9 +40,9 @@ export default function HomeScreen() {
             </View>
 
             <View style={[styles.protectionCard, { backgroundColor: colors.primary }]}>
-              <View style={styles.cardTopLine}><View style={[styles.liveDot, { backgroundColor: colors.warning }]} /><Text style={styles.cardKicker}>APERÇU NON CANONIQUE</Text></View>
+              <View style={styles.cardTopLine}><View style={[styles.liveDot, { backgroundColor: isOnline ? colors.success : colors.warning }]} /><Text style={styles.cardKicker}>{isChecking ? "VÉRIFICATION EN COURS" : isOnline ? "PROTECTION DISPONIBLE" : "MODE HORS LIGNE"}</Text></View>
               <Text style={styles.protectionTitle}>{isLocationLoading ? "Localisation en cours…" : placeLabel}</Text>
-              <Text style={styles.protectionCopy}>{permissionDenied ? "La protection native doit être ouverte dans Xcode pour demander la localisation." : "La version Expo ne présente aucune alerte ni donnée de risque comme réelle. Utilisez le paquet Swift canonique."}</Text>
+              <Text style={styles.protectionCopy}>{permissionDenied ? "Autorisez la localisation dans Réglages pour afficher les contrôles autour de vous." : connectionLabel}</Text>
               <Pressable style={({ pressed }) => [styles.cardButton, pressed && styles.pressed]} onPress={() => router.push("/(tabs)/map" as never)}>
                 <Text style={styles.cardButtonText}>Explorer la zone</Text><IconSymbol name="chevron.right" size={18} color="#102A43" />
               </Pressable>
