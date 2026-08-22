@@ -393,3 +393,17 @@
 # Correction RiskMapView
 - [x] Réparer l’accolade fermant prématurément le body de RiskMapView
 - [x] Régénérer et valider RiskMapView.swift
+
+# Blocage ouverture Xcode local
+- [ ] Restaurer project.pbxproj dans le paquet natif publié
+- [ ] Vérifier l’intégrité du projet Xcode téléchargé
+- [ ] Documenter une commande Mac unique pour récupérer et ouvrir le projet
+
+# Fichiers natifs absents du paquet local
+- [ ] Restaurer RiskMapView.swift et ScannerView.swift dans native-package/TravelGuard
+- [ ] Vérifier que project.pbxproj référence des fichiers existants
+- [ ] Publier et documenter une récupération complète du paquet natif
+
+# Correction Core Location
+- [x] Corriger l’affectation CLLocationCoordinate2D vers CLLocation dans Services.swift
+- [x] Régénérer et valider le natif après correction Core Location

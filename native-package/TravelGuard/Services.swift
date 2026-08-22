@@ -170,7 +170,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
             region.notifyOnEntry = true
             manager.startMonitoring(for: region)
         }
-        lastRegionRefreshLocation = current
+        lastRegionRefreshLocation = CLLocation(latitude: current.latitude, longitude: current.longitude)
         monitoringActive = !nearby.isEmpty
     }
 
