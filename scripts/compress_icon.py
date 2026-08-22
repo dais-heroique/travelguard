@@ -1,7 +1,7 @@
 from pathlib import Path
 from PIL import Image
 
-root = Path('/home/ubuntu/travelguard/assets/images')
+root = Path(__file__).resolve().parents[1] / 'assets' / 'images'
 for name in ['icon.png', 'splash-icon.png', 'favicon.png', 'android-icon-foreground.png']:
     path = root / name
     image = Image.open(path).convert('RGBA')

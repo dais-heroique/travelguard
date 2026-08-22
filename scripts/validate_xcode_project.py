@@ -2,7 +2,7 @@ from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
 
-roots = [Path('/home/ubuntu/travelguard/native-package')]
+roots = [Path(__file__).resolve().parents[1] / 'native-package']
 for root in roots:
     pbx = root / 'TravelGuard.xcodeproj' / 'project.pbxproj'
     text = pbx.read_text()

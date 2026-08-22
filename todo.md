@@ -464,3 +464,9 @@
 - [x] Auditer OCR, onboarding, permissions et états UX
 - [x] Corriger les bugs reproductibles et ajouter les régressions
 - [x] Régénérer, valider et sauvegarder la version corrigée
+
+# Nouvel audit approfondi des bugs
+- [x] Auditer les sources Swift, Codable, concurrence et projet Xcode
+- [x] Auditer les flux limites localisation, réseau, cache, carte et OCR
+- [x] Corriger chaque bug reproductible et ajouter une régression
+- [x] Régénérer, valider et sauvegarder la version corrigée
