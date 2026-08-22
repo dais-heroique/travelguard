@@ -437,3 +437,8 @@
 - [x] Initialiser toutes les propriétés stockées dans init de RiskPlace
 - [x] Vérifier l’initialiseur Codable de RiskPlace
 - [x] Régénérer, valider et publier Models.swift
+
+# Refonte dimension carte
+- [x] Agrandir la carte en portrait avec une hauteur adaptative
+- [x] Repositionner les contrôles et préserver la liste sous la carte
+- [x] Régénérer, valider et sauvegarder la mise en page

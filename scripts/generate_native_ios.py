@@ -833,6 +833,7 @@ struct QuickLink: View {
 'RiskMapView.swift': r'''import Foundation
 import MapKit
 import SwiftUI
+import UIKit
 
 struct RiskMapLegend: View {
     var body: some View {
@@ -954,7 +955,7 @@ struct RiskMapView: View {
                         requestViewportRisks()
                     }
                 }
-                .frame(height: 260)
+                .frame(height: min(max(UIScreen.main.bounds.height * 0.52, 420), 620))
                 .overlay(alignment: .topLeading) { RiskMapLegend().padding(10) }
                 .clipShape(RoundedRectangle(cornerRadius: 22))
                 .padding(.horizontal, 20)
