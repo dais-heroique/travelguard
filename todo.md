@@ -442,3 +442,8 @@
 - [x] Agrandir la carte en portrait avec une hauteur adaptative
 - [x] Repositionner les contrôles et préserver la liste sous la carte
 - [x] Régénérer, valider et sauvegarder la mise en page
+
+# Ajustement visuel écran Carte
+- [x] Réduire l’espace blanc supérieur de l’écran Carte
+- [x] Recaler la carte et la légende pour éviter toute découpe latérale
+- [x] Régénérer, valider et sauvegarder l’amélioration visuelle

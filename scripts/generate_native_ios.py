@@ -837,16 +837,16 @@ import UIKit
 
 struct RiskMapLegend: View {
     var body: some View {
-        HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 5) {
             Label("Faible", systemImage: "circle.fill").foregroundStyle(.green)
             Label("Modéré", systemImage: "circle.fill").foregroundStyle(.orange)
             Label("Élevé", systemImage: "circle.fill").foregroundStyle(.red)
             Label("Zone", systemImage: "circle.dotted").foregroundStyle(.red)
         }
         .font(.caption2.bold())
-        .padding(8)
+        .padding(9)
         .background(.thinMaterial)
-        .clipShape(Capsule())
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -997,6 +997,7 @@ struct RiskMapView: View {
             }
             .background(TGColor.ivory)
             .navigationTitle("")
+            .toolbar(.hidden, for: .navigationBar)
             .navigationBarHidden(true)
             .onAppear { store.location.refresh(); centerInitiallyIfNeeded() }
             .onChange(of: store.location.lastUpdated) { _, _ in centerInitiallyIfNeeded() }
