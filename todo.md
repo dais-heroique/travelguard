@@ -432,3 +432,8 @@
 - [x] Diagnostiquer project.pbxproj généré et son format de parse
 - [x] Remplacer la génération fragile par une structure Xcode valide
 - [x] Valider le paquet Xcode sur macOS et documenter la récupération
+
+# Correction initialiseur RiskPlace
+- [x] Initialiser toutes les propriétés stockées dans init de RiskPlace
+- [x] Vérifier l’initialiseur Codable de RiskPlace
+- [x] Régénérer, valider et publier Models.swift

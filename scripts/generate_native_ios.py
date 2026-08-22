@@ -130,7 +130,27 @@ struct RiskPlace: Identifiable, Hashable, Codable {
     let locationPrecision: LocationPrecision
     let serverReliabilityIndex: Int?
 
-    init(id: String, name: String, category: String, score: Int, summary: String, latitude: Double, longitude: Double, signals: [String] = [], source: String, updatedAt: Date, reportCount: Int = 0, sourceType: SourceTrust = .unknown, evidence: [RiskEvidence] = [], alertRadius: CLLocationDistance = 250, revokedAt: Date? = nil, sourceRecord: VerifiedSource? = nil, locationPrecision: LocationPrecision = .point, serverReliabilityIndex: Int? = nil) { self.id = id; self.name = name; self.category = category; self.score = score; self.summary = summary; self.latitude = latitude; self.longitude = longitude; self.source = source; self.updatedAt = updatedAt; self.reportCount = reportCount; self.sourceType = sourceType; self.evidence = evidence; self.alertRadius = alertRadius; self.revokedAt = revokedAt; self.sourceRecord = sourceRecord; self.locationPrecision = locationPrecision; self.serverReliabilityIndex = serverReliabilityIndex.map { min(100, max(0, $0)) } }
+    init(id: String, name: String, category: String, score: Int, summary: String, latitude: Double, longitude: Double, signals: [String] = [], source: String, updatedAt: Date, reportCount: Int = 0, sourceType: SourceTrust = .unknown, evidence: [RiskEvidence] = [], alertRadius: CLLocationDistance = 250, revokedAt: Date? = nil, sourceRecord: VerifiedSource? = nil, locationPrecision: LocationPrecision = .point, serverReliabilityIndex: Int? = nil) {
+        let normalizedReliability = serverReliabilityIndex.map { min(100, max(0, $0)) }
+        self.id = id
+        self.name = name
+        self.category = category
+        self.score = score
+        self.summary = summary
+        self.latitude = latitude
+        self.longitude = longitude
+        self.signals = signals
+        self.source = source
+        self.updatedAt = updatedAt
+        self.reportCount = reportCount
+        self.sourceType = sourceType
+        self.evidence = evidence
+        self.alertRadius = alertRadius
+        self.revokedAt = revokedAt
+        self.sourceRecord = sourceRecord
+        self.locationPrecision = locationPrecision
+        self.serverReliabilityIndex = normalizedReliability
+    }
 
     enum CodingKeys: String, CodingKey { case id, name, category, score, summary, latitude, longitude, signals, source, updatedAt, reportCount, sourceType, evidence, alertRadius, revokedAt, sourceRecord, locationPrecision, reliabilityIndex, confidenceScore }
     init(from decoder: Decoder) throws {
