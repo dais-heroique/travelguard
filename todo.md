@@ -447,3 +447,8 @@
 - [x] Réduire l’espace blanc supérieur de l’écran Carte
 - [x] Recaler la carte et la légende pour éviter toute découpe latérale
 - [x] Régénérer, valider et sauvegarder l’amélioration visuelle
+
+# Correction panneau Aperçu accueil
+- [x] Remplacer le bloc aperçu vide par un état de protection utile
+- [x] Afficher un état honnête selon synchronisation, données et localisation
+- [x] Régénérer, valider et sauvegarder l’accueil
